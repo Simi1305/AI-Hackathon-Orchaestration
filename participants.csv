@@ -1,0 +1,101 @@
+name,email,institution,skill_tags
+Aarav Mehta,aarav.m@example.com,IIT Bombay,Machine Learning;Data Science
+Vivaan Sharma,vivaan.s@example.com,IIT Delhi,Frontend;React
+Aditya Verma,aditya.v@example.com,IIT Kanpur,Hardware Design;Embedded Systems
+Vihaan Iyer,vihaan.i@example.com,IIT Madras,Backend;Cloud Architecture
+Arjun Singh,arjun.s@example.com,IIT Kharagpur,Algorithms;C++
+Sai Kumar,sai.k@example.com,IIT Roorkee,Database;Backend
+Reyansh Gupta,reyansh.g@example.com,IIT Guwahati,UI/UX;Figma
+Ayaan Patel,ayaan.p@example.com,IIT Hyderabad,Mobile Dev;Flutter
+Krishna Reddy,krishna.r@example.com,IIT BHU,Machine Learning;Python
+Ishaan Desai,ishaan.d@example.com,IIT Indore,Frontend;UI/UX
+Shaurya Joshi,shaurya.j@example.com,IIT Patna,Data Science;Algorithms
+Atharv Nair,atharv.n@example.com,IIT Bhubaneswar,DevOps;Cloud Architecture
+Kabir Das,kabir.d@example.com,IIT Gandhinagar,Hardware Design;C++
+Rishi Kapoor,rishi.k@example.com,IIT Ropar,Backend;Database
+Dev Bhatia,dev.b@example.com,IIT Jodhpur,Machine Learning;Algorithms
+Karan Malhotra,karan.m@example.com,IIT Mandi,Embedded Systems;Python
+Rudra Pillai,rudra.p@example.com,IIT Palakkad,Frontend;React
+Shivansh Thakur,shivansh.t@example.com,IIT Tirupati,UI/UX;Figma
+Aarush Yadav,aarush.y@example.com,IIT Dhanbad,Backend;Cloud Architecture
+Nitin Agarwal,nitin.a@example.com,IIT Bhilai,Data Science;Machine Learning
+Pranav Menon,pranav.m@example.com,IIT Goa,Algorithms;C++
+Lakshya Pandey,lakshya.p@example.com,IIT Jammu,Mobile Dev;Flutter
+Yash Tiwari,yash.t@example.com,IIT Dharwad,Hardware Design;Embedded Systems
+Ananya Sharma,ananya.s@example.com,NIT Trichy,Machine Learning;Data Science
+Diya Patel,diya.p@example.com,NIT Surathkal,Frontend;React
+Sana Verma,sana.v@example.com,NIT Warangal,Backend;Cloud Architecture
+Meera Reddy,meera.r@example.com,NIT Calicut,Algorithms;C++
+Ishita Gupta,ishita.g@example.com,NIT Rourkela,Database;Backend
+Kavya Iyer,kavya.i@example.com,NIT Allahabad,UI/UX;Figma
+Aisha Desai,aisha.d@example.com,NIT Jaipur,Mobile Dev;Flutter
+Neha Joshi,neha.j@example.com,NIT Kurukshetra,Machine Learning;Python
+Pooja Nair,pooja.n@example.com,NIT Silchar,Frontend;UI/UX
+Aditi Das,aditi.d@example.com,NIT Durgapur,Data Science;Algorithms
+Shruti Bhatia,shruti.b@example.com,NIT Bhopal,DevOps;Cloud Architecture
+Zara Kapoor,zara.k@example.com,NIT Jalandhar,Hardware Design;C++
+Tanya Malhotra,tanya.m@example.com,NIT Jamshedpur,Backend;Database
+Riya Thakur,riya.t@example.com,NIT Nagpur,Machine Learning;Algorithms
+Navya Pillai,navya.p@example.com,NIT Surat,Embedded Systems;Python
+Srishti Yadav,srishti.y@example.com,NIT Raipur,Frontend;React
+Kritika Agarwal,kritika.a@example.com,NIT Durgapur,UI/UX;Figma
+Tara Pandey,tara.p@example.com,NIT Patna,Backend;Cloud Architecture
+Nidhi Menon,nidhi.m@example.com,NIT Goa,Data Science;Machine Learning
+Rhea Tiwari,rhea.t@example.com,NIT Hamirpur,Algorithms;C++
+Siddharth Bose,siddharth.b@example.com,IIIT Hyderabad,Machine Learning;Data Science
+Rohan Sen,rohan.s@example.com,IIIT Bangalore,Frontend;React
+Vikram Chatterjee,vikram.c@example.com,IIIT Allahabad,Backend;Cloud Architecture
+Aman Mukherjee,aman.m@example.com,IIIT Delhi,Algorithms;C++
+Rahul Banerjee,rahul.b@example.com,IIIT Gwalior,Database;Backend
+Sameer Ghosh,sameer.g@example.com,IIIT Jabalpur,UI/UX;Figma
+Kunal Roy,kunal.r@example.com,IIIT Kancheepuram,Mobile Dev;Flutter
+Omar Farooq,omar.f@example.com,IIIT Pune,Machine Learning;Python
+Tariq Sheikh,tariq.s@example.com,IIIT Kota,Frontend;UI/UX
+Zain Ali,zain.a@example.com,IIIT Vadodara,Data Science;Algorithms
+Mohammad Khan,mohammad.k@example.com,IIIT Sri City,DevOps;Cloud Architecture
+Ali Hassan,ali.h@example.com,IIIT Guwahati,Hardware Design;C++
+Rajesh Kumar,rajesh.k@example.com,IIIT Lucknow,Backend;Database
+Amit Singh,amit.s@example.com,IIIT Dharwad,Machine Learning;Algorithms
+Suresh Patel,suresh.p@example.com,IIIT Kurnool,Embedded Systems;Python
+Manish Sharma,manish.s@example.com,IIIT Kottayam,Frontend;React
+Deepak Verma,deepak.v@example.com,IIIT Surat,UI/UX;Figma
+Anil Gupta,anil.g@example.com,IIIT Bhopal,Backend;Cloud Architecture
+Sunil Reddy,sunil.r@example.com,IIIT Bhagalpur,Data Science;Machine Learning
+Prakash Iyer,prakash.i@example.com,IIIT Agartala,Algorithms;C++
+Ajay Desai,ajay.d@example.com,IIIT Raichur,Mobile Dev;Flutter
+Vijay Joshi,vijay.j@example.com,IIIT Kalyani,Hardware Design;Embedded Systems
+Geeta Nair,geeta.n@example.com,VIT Vellore,Machine Learning;Data Science
+Anita Das,anita.d@example.com,VIT Vellore,Frontend;React
+Meena Bhatia,meena.b@example.com,VIT Vellore,Backend;Cloud Architecture
+Sunita Kapoor,sunita.k@example.com,VIT Vellore,Algorithms;C++
+Rekha Malhotra,rekha.m@example.com,VIT Chennai,Database;Backend
+Kiran Thakur,kiran.t@example.com,VIT Chennai,UI/UX;Figma
+Asha Pillai,asha.p@example.com,VIT Chennai,Mobile Dev;Flutter
+Jyoti Yadav,jyoti.y@example.com,VIT AP,Machine Learning;Python
+Sushma Agarwal,sushma.a@example.com,VIT AP,Frontend;UI/UX
+Mamta Menon,mamta.m@example.com,VIT Bhopal,Data Science;Algorithms
+Renu Pandey,renu.p@example.com,VIT Bhopal,DevOps;Cloud Architecture
+Usha Tiwari,usha.t@example.com,SRM Institute of Science,Hardware Design;C++
+Poonam Bose,poonam.b@example.com,SRM Institute of Science,Backend;Database
+Neelam Sen,neelam.s@example.com,SRM Institute of Science,Machine Learning;Algorithms
+Seema Chatterjee,seema.c@example.com,SRM Institute of Science,Embedded Systems;Python
+Shashi Mukherjee,shashi.m@example.com,SRM Ramapuram,Frontend;React
+Ravi Banerjee,ravi.b@example.com,SRM Ramapuram,UI/UX;Figma
+Ashok Ghosh,ashok.g@example.com,SRM Vadapalani,Backend;Cloud Architecture
+Sanjay Roy,sanjay.r@example.com,SRM NCR,Data Science;Machine Learning
+Vinod Farooq,vinod.f@example.com,Thapar Institute of Engineering,Algorithms;C++
+Manoj Sheikh,manoj.s@example.com,Thapar Institute of Engineering,Mobile Dev;Flutter
+Praveen Ali,praveen.a@example.com,Thapar Institute of Engineering,Hardware Design;Embedded Systems
+Naresh Khan,naresh.k@example.com,Thapar Institute of Engineering,Machine Learning;Data Science
+Harish Hassan,harish.h@example.com,Thapar Institute of Engineering,Frontend;React
+Rakesh Kumar,rakesh.k@example.com,Thapar Institute of Engineering,Backend;Cloud Architecture
+Dinesh Singh,dinesh.s@example.com,Thapar Institute of Engineering,Algorithms;C++
+Ganesh Patel,ganesh.p@example.com,Thapar Institute of Engineering,Database;Backend
+Ramesh Sharma,ramesh.s@example.com,BITS Pilani,UI/UX;Figma
+Mahesh Verma,mahesh.v@example.com,BITS Pilani,Mobile Dev;Flutter
+Mukesh Gupta,mukesh.g@example.com,BITS Goa,Machine Learning;Python
+Santosh Reddy,santosh.r@example.com,BITS Goa,Frontend;UI/UX
+Naveen Iyer,naveen.i@example.com,BITS Hyderabad,Data Science;Algorithms
+Satish Desai,satish.d@example.com,BITS Hyderabad,DevOps;Cloud Architecture
+Subhash Joshi,subhash.j@example.com,Delhi Technological University,Hardware Design;C++
+Kamal Nair,kamal.n@example.com,Delhi Technological University,Backend;Database
