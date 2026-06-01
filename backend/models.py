@@ -122,10 +122,12 @@ class Team(Base):
 class MentorAssignment(Base):
     __tablename__ = "mentor_assignments"
 
-    id         = Column(Integer, primary_key=True, index=True)
-    mentor_id  = Column(Integer, ForeignKey("mentor_profiles.id"))
-    team_id    = Column(Integer, ForeignKey("teams.id"), unique=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id          = Column(Integer, primary_key=True, index=True)
+    mentor_id   = Column(Integer, ForeignKey("mentor_profiles.id"))
+    team_id     = Column(Integer, ForeignKey("teams.id"), unique=True)
+    match_score = Column(Float, nullable=True)
+    rationale   = Column(String, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
 
     # ── relationships ──
     mentor = relationship("MentorProfile", back_populates="assignments")
@@ -302,6 +304,7 @@ class User(Base):
     password_hash = Column(String, nullable=True)
     role          = Column(Enum(UserRole), default=UserRole.PARTICIPANT)
     is_active     = Column(Boolean, default=True)
+    event_id      = Column(String, nullable=True, default="default")
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -347,16 +350,112 @@ class JudgeProfile(Base):
 
 
 # ──────────────────────────────────────────────
+# CONVERSATION
+# ──────────────────────────────────────────────
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    team_id    = Column(Integer, ForeignKey("teams.id"), unique=True)
+    
+    # ── relationships ──
+    team     = relationship("Team")
+    messages = relationship("Message", back_populates="conversation")
+
+    def __repr__(self):
+        return f"<Conversation team_id={self.team_id}>"
+
+
+# ──────────────────────────────────────────────
 # MESSAGE (chat)
 # ──────────────────────────────────────────────
 
 class Message(Base):
     __tablename__ = "messages"
 
-    id         = Column(Integer, primary_key=True, index=True)
-    sender_id  = Column(Integer, ForeignKey("users.id"))
-    content    = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id              = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"))
+    sender_id       = Column(Integer, ForeignKey("users.id"))
+    content         = Column(Text)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    # ── relationships ──
+    conversation = relationship("Conversation", back_populates="messages")
+    sender       = relationship("User")
 
     def __repr__(self):
-        return f"<Message id={self.id} sender={self.sender_id}>"
+        return f"<Message {self.id} | conversation={self.conversation_id} sender={self.sender_id}>"
+
+
+# ──────────────────────────────────────────────
+# PROJECT SUBMISSION
+# ──────────────────────────────────────────────
+
+class ProjectSubmission(Base):
+    __tablename__ = "project_submissions"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    team_id              = Column(Integer, ForeignKey("teams.id"), unique=True)
+    project_name         = Column(String)
+    problem_statement    = Column(Text)
+    solution_description = Column(Text)
+    tech_stack           = Column(Text)
+    github_url           = Column(String)
+    readme_content       = Column(Text)
+    architecture_summary = Column(Text)
+    innovation_notes     = Column(Text)
+    created_at           = Column(DateTime, default=datetime.utcnow)
+
+    # ── relationships ──
+    team = relationship("Team")
+
+    def __repr__(self):
+        return f"<ProjectSubmission team_id={self.team_id}>"
+
+
+# ──────────────────────────────────────────────
+# AI EVALUATION BRIEF
+# ──────────────────────────────────────────────
+
+class AIEvaluationBrief(Base):
+    __tablename__ = "ai_evaluation_briefs"
+
+    id                              = Column(Integer, primary_key=True, index=True)
+    team_id                         = Column(Integer, ForeignKey("teams.id"), unique=True)
+    problem_summary                 = Column(Text, nullable=True)
+    solution_summary                = Column(Text, nullable=True)
+    technology_stack_analysis       = Column(Text, nullable=True)
+    innovation_highlights           = Column(Text, nullable=True)
+    technical_complexity_assessment = Column(Text, nullable=True)
+    architecture_assessment         = Column(Text, nullable=True)
+    potential_risks                 = Column(Text, nullable=True)
+    scalability_assessment          = Column(Text, nullable=True)
+    suggested_areas_of_focus        = Column(Text, nullable=True)
+    created_at                      = Column(DateTime, default=datetime.utcnow)
+
+    # ── relationships ──
+    team = relationship("Team")
+
+    def __repr__(self):
+        return f"<AIEvaluationBrief team_id={self.team_id}>"
+
+# ──────────────────────────────────────────────
+# CERTIFICATE
+# ──────────────────────────────────────────────
+
+class Certificate(Base):
+    __tablename__ = "certificates"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    user_id          = Column(Integer, ForeignKey("users.id"))
+    certificate_type = Column(String) # e.g. "PARTICIPATION", "WINNER", "MENTOR"
+    issued_at        = Column(DateTime, default=datetime.utcnow)
+    is_published     = Column(Boolean, default=False)
+    download_url     = Column(String) # e.g., dummy IPFS link
+    
+    # ── relationships ──
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<Certificate {self.id} | user={self.user_id} type={self.certificate_type}>"

@@ -48,6 +48,13 @@ export async function login(username, password) {
 }
 
 export function logout() {
+  const token = localStorage.getItem("token");
+  if (token) {
+    fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+    }).catch(() => {}); // fire-and-forget
+  }
   localStorage.clear();
   window.location.href = "/login";
 }

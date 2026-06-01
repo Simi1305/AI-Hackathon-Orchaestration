@@ -300,6 +300,15 @@ class ParticipantMeResponse(BaseModel):
     github_url: Optional[str] = None
     team_id: Optional[int] = None
     
+    # UI-specific fields for the dashboard
+    team_name: Optional[str] = None
+    team_members: list[dict] = []
+    compatibility_score: Optional[float] = None
+    synergy_score: Optional[int] = None
+    submission_status: Optional[str] = None
+    mentor_name: Optional[str] = None
+    mentor_expertise: Optional[str] = None
+    
     class Config:
         from_attributes = True
 
@@ -333,10 +342,36 @@ class FullAnalyticsResponse(BaseModel):
     teams_formed: int
     pending_approvals: int
     active_judges: int
+    total_scores: int
+    total_mentors: int
+    submissions_count: int
+    anomalies_count: int
     participants_history: list[int]
     submissions_history: list[int]
     engagement_history: list[int]
     recent_insights: list[dict]
+    leaderboard: list[LeaderboardEntryRead] = []
+    team_activity: list[dict] = []
+    mentor_activity: list[dict] = []
+
+
+# ══════════════════════════════════════════════════════════════
+# CERTIFICATES
+# ══════════════════════════════════════════════════════════════
+
+class CertificateRead(BaseModel):
+    id: int
+    user_id: int
+    certificate_type: str
+    issued_at: datetime
+    is_published: bool
+    download_url: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+class CertificateGenerateRequest(BaseModel):
+    pass # No fields needed, generates for all approved teams and mentors
 
 
 # ══════════════════════════════════════════════════════════════
@@ -347,13 +382,122 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-class RegisterRequest(BaseModel):
-    username: str
-    password: str
-    role: str = "PARTICIPANT"
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str
-    username: str
+    username: str
+
+
+# ══════════════════════════════════════════════════════════════
+# ORGANIZER USER CREATION SCHEMAS
+# ══════════════════════════════════════════════════════════════
+
+class CreateParticipantRequest(BaseModel):
+    """Organizer creates a participant account + profile."""
+    username:    str = Field(..., min_length=2, max_length=50)
+    password:    str = Field(..., min_length=4, max_length=128)
+    name:        str = Field(..., min_length=2, max_length=120)
+    email:       EmailStr
+    institution: str = Field(..., min_length=2, max_length=200)
+    skill_tags:  str = Field(
+        ...,
+        description="Comma-separated skill list, e.g. 'ML,Backend,DevOps'",
+        examples=["ML,Python,Docker"],
+    )
+    experience:  str = Field(
+        ...,
+        pattern="^(junior|mid|senior)$",
+        description="Must be one of: junior | mid | senior",
+    )
+
+class CreateMentorRequest(BaseModel):
+    """Organizer creates a mentor account + profile."""
+    username:  str = Field(..., min_length=2, max_length=50)
+    password:  str = Field(..., min_length=4, max_length=128)
+    name:      str = Field(..., min_length=2, max_length=120)
+    email:     EmailStr
+    expertise: str = Field(..., min_length=2, max_length=500)
+    capacity:  int = Field(default=3, ge=1, le=20)
+
+class CreateJudgeRequest(BaseModel):
+    """Organizer creates a judge account + profile."""
+    username:  str = Field(..., min_length=2, max_length=50)
+    password:  str = Field(..., min_length=4, max_length=128)
+    name:      str = Field(..., min_length=2, max_length=120)
+    email:     EmailStr
+    expertise: Optional[str] = None
+
+class CreatedUserResponse(BaseModel):
+    """Returned after organizer creates a user — contains credentials to distribute."""
+    id:       int
+    username: str
+    role:     str
+    message:  str
+
+# ══════════════════════════════════════════════════════════════
+# TEAM COMMUNICATION
+# ══════════════════════════════════════════════════════════════
+
+class MessageCreate(BaseModel):
+    content: str
+    team_id: Optional[int] = None # For mentor sending to specific team
+
+class MessageRead(BaseModel):
+    id: int
+    sender_id: int
+    sender_name: str
+    sender_role: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ConversationRead(BaseModel):
+    id: int
+    team_id: int
+    messages: list[MessageRead] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ══════════════════════════════════════════════════════════════
+# PROJECT SUBMISSION & AI EVALUATION BRIEF
+# ══════════════════════════════════════════════════════════════
+
+class ProjectSubmissionRead(BaseModel):
+    id: int
+    team_id: int
+    project_name: Optional[str] = None
+    problem_statement: Optional[str] = None
+    solution_description: Optional[str] = None
+    tech_stack: Optional[str] = None
+    github_url: Optional[str] = None
+    readme_content: Optional[str] = None
+    architecture_summary: Optional[str] = None
+    innovation_notes: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AIEvaluationBriefRead(BaseModel):
+    id: int
+    team_id: int
+    problem_summary: Optional[str] = None
+    solution_summary: Optional[str] = None
+    technology_stack_analysis: Optional[str] = None
+    innovation_highlights: Optional[str] = None
+    technical_complexity_assessment: Optional[str] = None
+    architecture_assessment: Optional[str] = None
+    potential_risks: Optional[str] = None
+    scalability_assessment: Optional[str] = None
+    suggested_areas_of_focus: Optional[str] = None
+    created_at: datetime
+    
+    submission: Optional[ProjectSubmissionRead] = None # Added for convenience in API response
+
+    class Config:
+        from_attributes = True

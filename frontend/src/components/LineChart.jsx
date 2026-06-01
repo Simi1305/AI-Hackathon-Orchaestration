@@ -1,17 +1,15 @@
-export default function LineChart() {
+export default function LineChart({
+  participants = [30, 38, 45, 50, 55, 62, 70, 80, 88, 95, 105, 118, 130, 145],
+  submissions = [0, 2, 4, 5, 8, 10, 14, 18, 22, 26, 30, 35, 40, 42],
+  engagement = [20, 25, 30, 35, 42, 48, 52, 58, 63, 68, 72, 76, 80, 85]
+}) {
   const W = 600,
     H = 160,
     PAD = { top: 12, right: 8, bottom: 4, left: 28 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
-  // Mock data — swap with API later
-  const days = 14;
-  const participants = [
-    30, 38, 45, 50, 55, 62, 70, 80, 88, 95, 105, 118, 130, 145,
-  ];
-  const submissions = [0, 2, 4, 5, 8, 10, 14, 18, 22, 26, 30, 35, 40, 42];
-  const engagement = [20, 25, 30, 35, 42, 48, 52, 58, 63, 68, 72, 76, 80, 85];
+  const days = Math.max(participants.length, submissions.length, engagement.length, 14);
 
   const allVals = [...participants, ...submissions, ...engagement];
   const maxV = Math.max(...allVals);
