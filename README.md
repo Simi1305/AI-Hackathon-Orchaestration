@@ -1,85 +1,76 @@
-# EventFlow — AI-Powered Hackathon Orchestration Platform
+# EventFlow
 
-EventFlow is an operating system for running a hackathon. One organizer can run an event for hundreds of participants, because the AI does the heavy lifting — but a **human approves every important decision**.
+**AI-Powered Hackathon Orchestration Platform**
 
-It automates the parts of running a hackathon that don't scale by hand: ingesting messy registrations, forming skill-balanced teams, matching mentors, collecting judge scores, catching scoring anomalies, ranking teams, and issuing certificates — across four roles (Organizer, Participant, Mentor, Judge).
+Built for the TI WiSE Hackathon.
 
----
+EventFlow is a single platform for running a hackathon end to end. Organizers, participants, mentors, and judges all work inside one system, so the whole event lifecycle (registration, team formation, mentoring, submissions, judging, results, and certificates) happens in one place instead of being spread across spreadsheets, chat groups, and form tools.
 
-## Why it exists
+The guiding idea is simple: let the AI take care of the repetitive work, but keep a human in charge of every decision that actually matters.
 
-Most hackathons are run on spreadsheets and group chats. Forming balanced teams by hand is slow and biased, mentor matching is ad-hoc, and scoring has no safeguard against a single rogue or biased judge deciding who wins. EventFlow replaces that manual grind with three real engines and a human-in-the-loop approval layer.
+## The problem
 
-The design thesis: **use AI sparingly.** The AI writes language (rationales, emails, briefs); deterministic algorithms and statistics make the decisions that matter (who's on which team, what a team scores).
+Organizing a hackathon involves a lot more than collecting registrations. Teams have to be formed fairly, mentors need to be matched to the right projects, participants must stay informed, judges need enough context to evaluate work properly, and organizers need a clear view of what is happening at every stage. In most events these jobs are handled through several disconnected tools and manual coordination, which gets slow, repetitive, and hard to manage as the event grows.
 
----
+## What we set out to build
 
-## Key features
+* **One unified platform** that brings participants, mentors, judges, and organizers together for the full event lifecycle.
+* **Smart team formation** that builds balanced teams automatically from skills, experience, and institution constraints.
+* **Mentor allocation** that assigns mentors to teams based on expertise and project needs.
+* **AI-assisted evaluation** that helps judges understand submissions faster through generated project briefs.
+* **Event communication** through notifications, in-app chat, and role-based dashboards.
+* **Fair scoring and analytics** using weighted scoring, anomaly detection, and live event analytics.
 
-- **AI team formation** — a deterministic, constraint-aware engine that forms skill-balanced teams, enforces institutional diversity as a hard rule, and balances experience levels. Reproducible by design.
-- **Statistical anomaly detection** — flags judge scores that deviate too far from the panel and *holds* affected teams off the leaderboard until a human reviews them.
-- **Human-in-the-loop approval gates** — every AI-driven action (team formation, mentor intros, anomaly resolution, publishing results) becomes an approval request with a state machine and audit trail. The AI proposes; the organizer disposes.
-- **Role-based dashboards** — separate, scoped experiences for organizers, participants, mentors, and judges.
-- **AI evaluation briefs** — for each submission, a generated briefing (problem, tech-stack analysis, risks, scalability) that gives judges context fast without scoring for them.
-- **Certificates + AI event summary** — one-click certificate generation and an AI-written executive summary of the whole event.
+## What makes EventFlow different
 
----
+* **Unified end-to-end ecosystem.** Role-gated interfaces for Organizer, Participant, Mentor, and Judge, with shared workflows and persistent communication, replace a pile of separate third-party tools.
+* **Algorithmic team and mentor matching.** A constraint-aware greedy plus backtracking algorithm forms skill-balanced teams, and an automated allocation step matches mentors to teams, so organizers no longer coordinate this by hand.
+* **Non-blocking AI evaluation assistant.** The Gemini SDK runs through FastAPI background tasks to read submission data and produce structured briefs for judges without slowing the interface down.
+* **Statistically rigorous scoring.** A panel-size-aware anomaly detection engine catches inconsistent or biased judge scores and holds the affected team until a human reviews it.
+* **Reliable, decision-safe architecture.** Event-driven notifications, enum-based approval state machines, and explicit human-reviewed approval gates sit on top of a concurrent SQLite WAL database.
 
-## Architecture
+## System architecture
 
-```
-Frontend — React 19 + Vite + Tailwind + React Router
-  Role-based dashboards · JWT auth · single API client
-        |  REST / JSON (JWT on every request)
-Backend — FastAPI (Python)
-  Thin route handlers  ->  Repository layer  ->  SQLAlchemy ORM
-  JWT + bcrypt auth · Pydantic validation · CORS
-        |
-   +----------------+------------------+
-   |                |                  |
- team_formation   scoring_engine     ai_engine
- (deterministic   (anomaly detect    (Gemini: language
-  greedy+         + consolidation)    tasks only)
-  backtrack)
-   |                |                  |
-   +----------------+------------------+
-                    |
-        SQLite (WAL mode) via SQLAlchemy
-```
+EventFlow uses an N-tier design. The browser holds the UI and routing, FastAPI handles requests and orchestration, the domain engines hold the real logic, and a repository layer owns all database access.
 
-The three engines are pure Python with no web or database dependencies, so they can be unit-tested in isolation. Route handlers never touch the ORM directly — they delegate to repository classes (the **repository pattern**), which keeps them thin and testable.
+![System Architecture](docs/architecture.png)
 
-### The three engines
+The three domain engines are pure Python with no web or database imports, so each one can be tested on its own. Route handlers never run queries directly. They go through repository classes, which keeps the handlers short and easy to follow.
 
-**`team_formation.py` — skill-balanced greedy with backtracking.**
-Feasibility check -> score each candidate by skill-gap fill (0.7) and experience balance (0.3) -> place on best-fit team subject to a *hard* one-per-institution constraint -> backtrack-swap to resolve deadlocks -> overflow team for anyone unplaceable (never silently dropped). Deterministic via a fixed seed so results are reproducible and defensible.
+## Data flow (Level-1 DFD)
 
-**`scoring_engine.py` — anomaly detection + consolidation.**
-Adapts to panel size: absolute-gap rule for 2 judges, leave-one-out for 3, z-score for 4+. Flagged scores are excluded and the team is *held* until an organizer reviews. Final score is a weighted average over five rubric dimensions (innovation, technical depth, presentation, feasibility, impact), weights configurable per event.
+The platform is organized as a set of processes that read from and write to dedicated data stores. External actors (Organizer, Participant, Mentor, Judge) interact only through these processes.
 
-**`ai_engine.py` — Gemini for language tasks only.**
-Skill extraction from messy bios (JSON-mode), team rationale, mentor-intro emails, AI evaluation briefs, and the final event summary. Every prompt is grounded in real database fields; the model never invents facts or numbers.
+![Level-1 Data Flow Diagram](docs/dfd.png)
 
----
+Team-formation and mentor-allocation events flow into the notification engine (P4), which pushes updates to users and publishes evaluation results and the leaderboard once an organizer approves them.
+
+## How the three engines work
+
+**team_formation.py** builds teams with a skill-balanced greedy method plus backtracking. It first checks whether valid teams are even possible under the institution rule, then scores each candidate by how many missing skills they add (weighted 0.7) and how well they balance experience levels (weighted 0.3). One participant per institution per team is a hard constraint. If the greedy pass gets stuck, it swaps members between teams to break the deadlock, and anyone who still cannot be placed goes into a clearly marked overflow team rather than being dropped. A fixed seed makes the result reproducible, which matters when an organizer has to defend why a team was formed a certain way.
+
+**scoring_engine.py** consolidates judge scores and watches for outliers. The method adapts to how many judges scored a team: an absolute-gap rule for two judges, a leave-one-out comparison for three, and a z-score against the panel for four or more. Flagged scores are set aside and the team is held off the leaderboard until an organizer reviews it. The final score is a weighted average across five rubric dimensions (innovation, technical depth, presentation, feasibility, impact), with weights configurable per event.
+
+**ai_engine.py** uses Gemini only for language work: turning messy registration bios into clean skill tags, writing team rationales, drafting mentor introduction emails, generating evaluation briefs for judges, and writing the final event summary. Every prompt is built from real database fields, so the model writes about facts the system already holds rather than inventing them.
 
 ## Tech stack
 
-| Layer     | Tech |
-|-----------|------|
-| Frontend  | React 19, Vite, Tailwind CSS 4, React Router 7 |
-| Backend   | FastAPI, SQLAlchemy 2, Pydantic v2 |
-| Auth      | JWT (python-jose) + bcrypt |
-| Database  | SQLite (WAL mode) — swappable to Postgres via the ORM |
-| AI        | Google Gemini (google-genai SDK, gemini-2.5-flash) |
-
----
+| Technology | Why we chose it |
+|------------|-----------------|
+| React + Vite | Fast build for a multi-role single-page app |
+| Tailwind CSS | Quick, consistent styling across the dashboards |
+| FastAPI | Clean Python APIs with built-in validation and async support |
+| SQLite (WAL mode) | Simple file-based database, easy to ship, good concurrent reads |
+| SQLAlchemy | Manages the data model and lets us move to Postgres later |
+| JWT + bcrypt | Secure, role-based authentication |
+| Google Gemini (gemini-2.5-flash, google-genai SDK) | Generates briefs, rationales, and summaries |
 
 ## Getting started
 
 ### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- A Google Gemini API key (https://aistudio.google.com/apikey)
+* Python 3.10 or newer
+* Node.js 18 or newer
+* A Google Gemini API key (https://aistudio.google.com/apikey)
 
 ### 1. Backend
 
@@ -87,14 +78,14 @@ Skill extraction from messy bios (JSON-mode), team rationale, mentor-intro email
 cd backend
 pip install -r requirements.txt
 
-# configure your API key
-cp .env.example .env          # then edit .env and paste your key
-# or set it directly:
+# add your API key
+cp .env.example .env          # then open .env and paste your key
+# or set it in the shell:
 #   macOS/Linux:  export GEMINI_API_KEY="your_key"
 #   Windows PS:   $env:GEMINI_API_KEY="your_key"
 
 python seed.py                # loads demo data
-uvicorn main:app --reload     # API at http://localhost:8000  (docs at /docs)
+uvicorn main:app --reload     # API on http://localhost:8000  (docs at /docs)
 ```
 
 ### 2. Frontend
@@ -102,57 +93,53 @@ uvicorn main:app --reload     # API at http://localhost:8000  (docs at /docs)
 ```bash
 cd frontend
 npm install
-npm run dev                   # app at http://localhost:5173
+npm run dev                   # app on http://localhost:5173
 ```
-
----
 
 ## Demo accounts
 
-After running `python seed.py`, log in with (password for all: `password123`):
+After running `python seed.py`, sign in with any of these (password for all: `password123`):
 
-| Role        | Username        |
-|-------------|-----------------|
-| Organizer   | `admin`         |
-| Participant | `aarav`         |
-| Mentor      | `mentor_sarah`  |
-| Judge       | `judge_michael` |
+| Role | Username |
+|------|----------|
+| Organizer | `admin` |
+| Participant | `aarav` |
+| Mentor | `mentor_sarah` |
+| Judge | `judge_michael` |
 
 The seed creates 1 organizer, 20 participants, 5 mentors, and 3 judges.
-
----
 
 ## Project structure
 
 ```
 backend/
-  main.py            FastAPI app + all routes (thin handlers)
-  repositories.py    Repository layer (all ORM queries live here)
-  models.py          SQLAlchemy models + enums + approval state machine
-  schemas.py         Pydantic request/response schemas
-  database.py        Engine, session factory, init/seed helpers
-  team_formation.py  Deterministic team-formation engine
-  scoring_engine.py  Anomaly detection + score consolidation
+  main.py            FastAPI app and all routes (thin handlers)
+  repositories.py    Repository layer (all database queries live here)
+  models.py          SQLAlchemy models, enums, approval state machine
+  schemas.py         Pydantic request and response schemas
+  database.py        Engine, session factory, init and seed helpers
+  team_formation.py  Team-formation engine
+  scoring_engine.py  Anomaly detection and score consolidation
   ai_engine.py       Gemini language tasks
   seed.py            Demo data loader
 frontend/
   src/
-    pages/           One dashboard per role (organizer/participant/mentor/judge)
+    pages/           One dashboard per role (organizer, participant, mentor, judge)
     components/      Shared UI (cards, charts, layout, protected routes)
     context/         Auth context
     api.js           Single API client (attaches JWT, handles 401)
 ```
 
----
+## What we learned
 
-## Roadmap
+Bringing several modules into one workflow, securing role-based access, and keeping every feature database-driven were the main challenges. Along the way we worked on designing a scalable architecture, building secure APIs with FastAPI and JWT, fitting AI into a real product, modeling data with SQLAlchemy, and creating a fair evaluation system with scoring and anomaly detection.
 
-- Test suite for the three engines (`pytest`)
-- Hardened error handling and retries around LLM calls
-- Longitudinal judge-bias detection (across all teams, not just per team)
-- Postgres + task queue for large, multi-event deployments
-- httpOnly-cookie auth and login rate-limiting
+## Future scope
 
----
-
-*Built for the WISE TI Hackathon.*
+* An ML model to predict team compatibility and improve formation.
+* A recommendation model for mentor assignment based on skill gaps and project domain.
+* Real-time chat over WebSockets for participants and mentors.
+* GitHub integration for automatic project and commit analysis.
+* Multi-event support for hackathons, case competitions, and coding contests.
+* AI-based plagiarism and project-similarity detection.
+* Cloud deployment and a move to PostgreSQL with PgBouncer for heavy concurrent traffic.
