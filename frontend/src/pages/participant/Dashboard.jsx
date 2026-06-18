@@ -47,7 +47,7 @@ const navItems = [
 
 const pageContent = {
   dashboard: { title: "Dashboard", description: "Your participant hub — profile, team, and submissions at a glance." },
-  myteam: { title: "My Team", description: "View your team composition, members, and compatibility details." },
+  myteam: { title: "My Team", description: "Chat with your teammates and mentor in real time." },
   submissions: { title: "Submissions", description: "Submit your project deliverables and track submission status." },
   certificates: { title: "Certificates", description: "View and download your participation certificates." },
 };

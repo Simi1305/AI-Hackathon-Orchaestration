@@ -37,7 +37,7 @@ from typing import Optional
 
 import httpx
 import os
-import google.generativeai as genai
+from google import genai
 from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -188,12 +188,13 @@ async def _generate_and_save_rationale(
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set.")
-            
-        genai.configure(api_key=api_key)
-        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        # Send the string prompt to Google Gemini
-        response = gemini_model.generate_content(prompt)
+
+        # Unified on the google-genai SDK + gemini-2.5-flash (see ai_engine.py)
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
         rationale_text = response.text.strip()
         # ──────────────────────────────────
     except Exception as exc:
@@ -1737,7 +1738,6 @@ def get_ai_evaluation_brief(team_id: int, current_user: User = Depends(get_curre
         if not api_key:
             raise ValueError("No Gemini API key")
             
-        import google.genai as genai
         client = genai.Client(api_key=api_key)
         
         prompt = f"""

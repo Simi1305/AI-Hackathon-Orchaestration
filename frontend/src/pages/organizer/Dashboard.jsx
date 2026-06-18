@@ -914,6 +914,41 @@ export default function OrganizerDashboard() {
               </button>
             </div>
           </div>
+
+          <div className="mt-6">
+            <h4 className="text-slate-300 font-medium text-[13px] mb-3">
+              Certificate types issued
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 border border-slate-800 rounded-xl bg-slate-800/20">
+                <span className="inline-block px-2 py-1 mb-2 rounded-md bg-indigo-500/10 text-indigo-300 text-[11px] font-semibold">
+                  PARTICIPATION
+                </span>
+                <p className="text-slate-500 text-[12px]">
+                  Issued to every participant on an approved team for taking part in the event.
+                </p>
+              </div>
+              <div className="p-4 border border-slate-800 rounded-xl bg-slate-800/20">
+                <span className="inline-block px-2 py-1 mb-2 rounded-md bg-amber-500/10 text-amber-300 text-[11px] font-semibold">
+                  WINNER
+                </span>
+                <p className="text-slate-500 text-[12px]">
+                  Awarded to members of top-ranked teams once results are approved and published.
+                </p>
+              </div>
+              <div className="p-4 border border-slate-800 rounded-xl bg-slate-800/20">
+                <span className="inline-block px-2 py-1 mb-2 rounded-md bg-emerald-500/10 text-emerald-300 text-[11px] font-semibold">
+                  MENTOR
+                </span>
+                <p className="text-slate-500 text-[12px]">
+                  Recognises mentors for the teams they guided through the hackathon.
+                </p>
+              </div>
+            </div>
+            <p className="text-slate-600 text-[11.5px] mt-4 leading-relaxed">
+              Workflow: generate certificates first, review them, then publish to make them downloadable from each recipient's dashboard. Certificates are only created for approved teams and active mentors, so run this after results are finalised.
+            </p>
+          </div>
         </div>
       )}
 

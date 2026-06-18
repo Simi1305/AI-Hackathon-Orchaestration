@@ -1,7 +1,22 @@
+# ── Web framework ─────────────────────────────
 fastapi==0.110.0
 uvicorn==0.27.1
-SQLAlchemy==2.0.49
 python-multipart
+
+# ── Database / ORM ────────────────────────────
+SQLAlchemy==2.0.49
+
+# ── Auth ──────────────────────────────────────
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt
+
+# ── Validation ────────────────────────────────
 pydantic[email]
+
+# ── AI (Google Gemini, new google-genai SDK) ──
+google-genai
+
+# ── HTTP client + env loading ─────────────────
+httpx
+python-dotenv
