@@ -631,3 +631,18 @@ class EventConfigProposal(BaseModel):
     weight_feasibility:     Optional[float] = None
     weight_impact:          Optional[float] = None
     anomaly_threshold:      Optional[float] = None
+
+
+# ══════════════════════════════════════════════════════════════
+# JUDGE SCORE SUBMIT (team_id from URL, judge_id from auth)
+# ══════════════════════════════════════════════════════════════
+
+class JudgeScoreSubmit(BaseModel):
+    """Body for /judge/teams/{team_id}/score. Team and judge come from the
+    URL path and the authenticated user, so only the rubric is needed."""
+    innovation:      float = Field(..., ge=0.0, le=10.0)
+    technical_depth: float = Field(..., ge=0.0, le=10.0)
+    presentation:    float = Field(..., ge=0.0, le=10.0)
+    feasibility:     float = Field(..., ge=0.0, le=10.0)
+    impact:          float = Field(..., ge=0.0, le=10.0)
+    notes:           Optional[str] = Field(None, max_length=2000)

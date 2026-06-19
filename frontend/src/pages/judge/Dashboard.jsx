@@ -6,19 +6,6 @@ import { fetchWithAuth, postWithAuth, getRole } from "../../api";
 const navItems = [
   {
     id: "dashboard",
-    label: "Dashboard",
-    badge: null,
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1.5" />
-        <rect x="14" y="3" width="7" height="7" rx="1.5" />
-        <rect x="3" y="14" width="7" height="7" rx="1.5" />
-        <rect x="14" y="14" width="7" height="7" rx="1.5" />
-      </svg>
-    ),
-  },
-  {
-    id: "evaluations",
     label: "Evaluations",
     badge: null,
     icon: (
@@ -32,8 +19,8 @@ const navItems = [
 
 const pageContent = {
   dashboard: {
-    title: "Judge Dashboard",
-    description: "Overview of your pending evaluations and scoring metrics.",
+    title: "Judge Evaluations",
+    description: "Review AI briefs and score the teams assigned to you.",
   },
   evaluations: {
     title: "Evaluations",

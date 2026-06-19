@@ -6,6 +6,7 @@ import PendingApprovalsSection from "../../components/ApprovalCard";
 import { fetchWithAuth, postWithAuth, putWithAuth, getRole } from "../../api";
 
 import Teams from "./Teams";
+import Participants from "./Participants";
 import Approvals from "./Approvals";
 /* ── Nav items ── */
 const navItems = [
@@ -368,6 +369,7 @@ export default function OrganizerDashboard() {
   const [commLog, setCommLog] = useState([]);
   const [commMsg, setCommMsg] = useState("");
   const [certMsg, setCertMsg] = useState("");
+  const [certList, setCertList] = useState([]);
 
   useEffect(() => {
     if (active === "settings" && !config) {
@@ -452,6 +454,12 @@ export default function OrganizerDashboard() {
     if (active === "comms") {
       fetchWithAuth("/api/v1/organizer/communications").then((l) => l && setCommLog(l)).catch(() => {});
     }
+  }, [active]);
+
+  const loadCerts = () =>
+    fetchWithAuth("/api/v1/organizer/certificates").then((c) => c && setCertList(c)).catch(() => {});
+  useEffect(() => {
+    if (active === "certificates") loadCerts();
   }, [active]);
 
   const handleDraftComm = async () => {
@@ -1043,7 +1051,7 @@ export default function OrganizerDashboard() {
                       "/api/v1/organizer/certificates/generate",
                       {},
                     );
-                    setCertMsg(`Generated ${res.generated_count} certificates.`);
+                    setCertMsg(`Generated ${res.generated_count} certificates.`); loadCerts();
                   } catch (e) {
                     setCertMsg("Failed to generate certificates.");
                   }
@@ -1069,7 +1077,7 @@ export default function OrganizerDashboard() {
                       "/api/v1/organizer/certificates/publish",
                       {},
                     );
-                    setCertMsg(`Published ${res.published_count} certificates.`);
+                    setCertMsg(`Published ${res.published_count} certificates.`); loadCerts();
                   } catch (e) {
                     setCertMsg("Failed to publish certificates.");
                   }
@@ -1121,6 +1129,40 @@ export default function OrganizerDashboard() {
               Workflow: generate certificates first, review them, then publish to make them downloadable from each recipient's dashboard. Certificates are only created for approved teams and active mentors, so run this after results are finalised.
             </p>
           </div>
+
+          {certList.length > 0 && (
+            <div className="mt-6">
+              <h4 className="text-slate-300 font-medium text-[13px] mb-3">
+                Generated certificates ({certList.length})
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-slate-500 text-[11px] uppercase border-b border-slate-800">
+                      <th className="py-2 pr-4">Recipient</th>
+                      <th className="py-2 pr-4">Type</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {certList.map((c) => (
+                      <tr key={c.id} className="border-b border-slate-800/60 text-[12px]">
+                        <td className="py-2 pr-4 text-slate-300">{c.recipient}</td>
+                        <td className="py-2 pr-4 text-slate-400">{c.certificate_type}</td>
+                        <td className="py-2">
+                          {c.is_published ? (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 text-[10px] font-semibold">Published</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 text-[10px] font-semibold">Draft - not yet published</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1256,15 +1298,17 @@ export default function OrganizerDashboard() {
             ) : (
               <div className="space-y-3">
                 {activity.map((a, idx) => {
-                  const color = a.category === "APPROVAL" ? "text-amber-300 bg-amber-500/10"
+                  const isAnomaly = /anomal/i.test(a.message);
+                  const color = isAnomaly ? "text-rose-300 bg-rose-500/15"
+                    : a.category === "APPROVAL" ? "text-amber-300 bg-amber-500/10"
                     : a.category === "SCORE" ? "text-violet-300 bg-violet-500/10"
                     : a.category === "TEAM" ? "text-emerald-300 bg-emerald-500/10"
                     : "text-slate-300 bg-slate-700/40";
                   return (
-                    <div key={idx} className="flex items-start gap-3 pb-3 border-b border-slate-800 last:border-0">
-                      <span className={"px-2 py-1 rounded-md text-[10px] font-semibold " + color}>{a.category}</span>
+                    <div key={idx} className={"flex items-start gap-3 pb-3 border-b border-slate-800 last:border-0 " + (isAnomaly ? "rounded-lg bg-rose-500/5 px-2 -mx-2" : "")}>
+                      <span className={"px-2 py-1 rounded-md text-[10px] font-semibold " + color}>{isAnomaly ? "ANOMALY" : a.category}</span>
                       <div className="flex-1">
-                        <p className="text-slate-300 text-[13px]">{a.message}</p>
+                        <p className={"text-[13px] " + (isAnomaly ? "text-rose-200 font-medium" : "text-slate-300")}>{a.message}</p>
                         <p className="text-slate-600 text-[11px] mt-0.5">{new Date(a.timestamp).toLocaleString()}</p>
                       </div>
                     </div>
@@ -1361,8 +1405,9 @@ export default function OrganizerDashboard() {
         </div>
       )}
 
+      {active === "participants" && <Participants />}
       {active === "teams" && <Teams />}
-      {active === "approvals" && <Approvals />}
+      {active === "approvals" && <PendingApprovalsSection />}
       {/* Placeholder for other nav pages */}
       {![
         "dashboard",
@@ -1370,6 +1415,7 @@ export default function OrganizerDashboard() {
         "certificates",
         "teams",
         "approvals",
+        "participants",
         "settings",
         "timeline",
         "comms",

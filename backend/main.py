@@ -1644,6 +1644,26 @@ def publish_certificates(current_user: User = Depends(get_current_user), db: Ses
     db.commit()
     return {"status": "success", "published_count": len(certs)}
 
+@app.get("/api/v1/organizer/certificates", tags=["Dashboards"])
+def list_certificates(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """List every generated certificate so the organizer can review before publishing."""
+    if current_user.role != UserRole.ORGANIZER:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    rows = db.query(models.Certificate).order_by(models.Certificate.id.asc()).all()
+    out = []
+    for c in rows:
+        user = db.query(models.User).filter(models.User.id == c.user_id).first()
+        out.append({
+            "id": c.id,
+            "recipient": user.username if user else f"user #{c.user_id}",
+            "certificate_type": c.certificate_type,
+            "is_published": c.is_published,
+            "issued_at": c.issued_at.isoformat() if c.issued_at else None,
+            "download_url": c.download_url,
+        })
+    return out
+
+
 @app.get("/api/v1/participant/certificates", response_model=list[schemas.CertificateRead], tags=["Dashboards"])
 def get_participant_certificates(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role not in [UserRole.PARTICIPANT, UserRole.MENTOR]:
@@ -2002,7 +2022,7 @@ def get_ai_evaluation_brief(team_id: int, current_user: User = Depends(get_curre
 
 
 @app.post("/api/v1/judge/teams/{team_id}/score", tags=["AI Evaluation"])
-def submit_team_score(team_id: int, score_data: schemas.ScoreSubmit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def submit_team_score(team_id: int, score_data: schemas.JudgeScoreSubmit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != UserRole.JUDGE:
         raise HTTPException(status_code=403, detail="Only judges can submit scores.")
         
