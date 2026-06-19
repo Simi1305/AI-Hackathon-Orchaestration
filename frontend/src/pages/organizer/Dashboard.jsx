@@ -422,7 +422,7 @@ export default function OrganizerDashboard() {
       }
     }
     fetchData();
-  }, []);
+  }, [active]);
 
   useEffect(() => {
     if (active === "timeline") {

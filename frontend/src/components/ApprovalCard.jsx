@@ -401,7 +401,14 @@ export default function PendingApprovalsSection() {
     setTimeout(load, 900);
   };
 
+  const approveAllTeams = async () => {
+    try { await postWithAuth("/api/v1/organizer/approvals/approve-team-formations", {}); }
+    catch (e) { console.error(e); }
+    setTimeout(load, 700);
+  };
+
   const pendingCount = approvals.filter((a) => !statuses[a.id]).length;
+  const teamReviewCount = approvals.filter((a) => a.approval_type === "TEAM_REVIEW" && !statuses[a.id]).length;
 
   return (
     <div className="mt-3">
@@ -424,6 +431,12 @@ export default function PendingApprovalsSection() {
             AI-generated actions awaiting organizer review &amp; approval
           </p>
         </div>
+        {teamReviewCount > 1 && (
+          <button onClick={approveAllTeams}
+            className="px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[12px] font-semibold transition-colors">
+            Approve all {teamReviewCount} team formations
+          </button>
+        )}
       </div>
 
       {/* Divider with AI label */}

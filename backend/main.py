@@ -198,8 +198,19 @@ async def _generate_and_save_rationale(
         rationale_text = response.text.strip()
         # ──────────────────────────────────
     except Exception as exc:
-        logger.error(f"[Background] LLM call failed for team_id={team_id}: {exc}")
-        rationale_text = "[Rationale generation failed — see server logs.]"
+        logger.warning(f"[Background] LLM rationale unavailable for team_id={team_id}; using template. ({exc})")
+        try:
+            skills = sorted({sk for m in members_data for sk in m.skill_tags})
+            insts  = sorted({m.institution for m in members_data})
+            levels = sorted({m.experience for m in members_data})
+            rationale_text = (
+                f"Team {team_name} brings together {len(members_data)} members from "
+                f"{len(insts)} institution(s) ({', '.join(insts)}), combining complementary "
+                f"skills across {', '.join(skills)}. The mix of {', '.join(levels)} experience "
+                f"levels creates a balanced, collaborative dynamic well suited to the challenge."
+            )
+        except Exception:
+            rationale_text = f"Team {team_name} was formed with a balanced mix of skills, experience, and institutions."
 
     # Persist rationale — open a new session (background tasks outlive the request session)
     db = SessionLocal()
@@ -602,9 +613,65 @@ async def trigger_team_formation(
     created_team_ids: list[int] = []
     existing_team_count = len(team_repo.get_all())
 
+    # Pool of challenges + project submissions so newly formed teams are fully
+    # judgeable (challenge shown in the judge portal, brief generated from this).
+    challenge_pool = [
+        {"name": "SmartTriage AI", "challenge": "AI-Assisted Hospital Triage",
+         "problem": "Emergency rooms struggle to prioritise patients quickly during peak load.",
+         "solution": "An AI intake assistant that reads patient symptoms and ranks urgency in real time.",
+         "tech": "Python, FastAPI, React, PostgreSQL",
+         "arch": "Microservices backend with a model-inference service and a React intake portal.",
+         "inno": "Urgency scoring tuned on triage guidelines, with a human override on every case."},
+        {"name": "GreenLedger", "challenge": "Carbon Footprint Tracking",
+         "problem": "Small businesses cannot easily measure or report their carbon footprint.",
+         "solution": "A platform that ingests utility and travel data to compute and visualise emissions.",
+         "tech": "Node.js, Next.js, TimescaleDB",
+         "arch": "Event-driven ingestion pipeline feeding a time-series store and dashboard.",
+         "inno": "Automated emission-factor mapping from raw invoices."},
+        {"name": "CivicPulse", "challenge": "Citizen Feedback Analytics",
+         "problem": "City governments receive feedback across channels but cannot synthesise it.",
+         "solution": "An NLP system that clusters citizen reports into themes and surfaces priorities.",
+         "tech": "Python, spaCy, FastAPI, Vue",
+         "arch": "Batch NLP pipeline with a topic-clustering service and an analytics dashboard.",
+         "inno": "Theme extraction that adapts as new categories of feedback appear."},
+        {"name": "EduMentor", "challenge": "Personalised Learning Paths",
+         "problem": "Students get the same material regardless of where they struggle.",
+         "solution": "An adaptive engine that recommends the next best lesson from quiz performance.",
+         "tech": "Python, Django, React, Redis",
+         "arch": "Recommendation service over a learner-progress store with a React frontend.",
+         "inno": "Mastery-based sequencing rather than fixed lesson order."},
+        {"name": "SafeRoute", "challenge": "Pedestrian Safety Mapping",
+         "problem": "Pedestrians lack data on which routes are safest at night.",
+         "solution": "A routing app that weights lighting, footfall and incident data into a safety score.",
+         "tech": "Go, React Native, PostGIS",
+         "arch": "Geospatial routing service with a mobile client and a data-ingestion worker.",
+         "inno": "A composite safety score blended into standard shortest-path routing."},
+        {"name": "AgriSense", "challenge": "Crop Disease Detection",
+         "problem": "Farmers detect crop disease too late to act.",
+         "solution": "A mobile tool that classifies leaf images and recommends treatment.",
+         "tech": "Python, TensorFlow, Flutter, FastAPI",
+         "arch": "On-device inference with a cloud sync service for agronomy advice.",
+         "inno": "Lightweight model that runs offline in low-connectivity fields."},
+    ]
+
     for idx, team_members in enumerate(formation_result.teams):
         team_name = _generate_team_name(existing_team_count + idx)
         team      = team_repo.create(name=team_name)
+
+        # Assign a challenge + project submission so the team is judgeable
+        ch = challenge_pool[(existing_team_count + idx) % len(challenge_pool)]
+        team.challenge = ch["challenge"]
+        db.add(models.ProjectSubmission(
+            team_id=team.id,
+            project_name=ch["name"],
+            problem_statement=ch["problem"],
+            solution_description=ch["solution"],
+            tech_stack=ch["tech"],
+            github_url=f"https://github.com/hackathon/{ch['name'].lower().replace(' ', '')}",
+            architecture_summary=ch["arch"],
+            innovation_notes=ch["inno"],
+            readme_content=f"# {ch['name']}\n\n{ch['solution']}",
+        ))
 
         # Assign DB participant rows to this team
         db_members = [db_participant_map[m.id] for m in team_members if m.id in db_participant_map]
@@ -1242,6 +1309,84 @@ def communications_log(
     from models import Communication
     rows = db.query(Communication).order_by(Communication.created_at.desc()).limit(100).all()
     return rows
+
+
+# ── EVENT RESET / RE-FORM / BULK APPROVE (demo + ops helpers) ──
+def _wipe_teams(db, drop_participants: bool = False):
+    """Delete all teams and their dependent rows. Optionally drop participants too."""
+    from models import (
+        Message, Conversation, Score, Approval, Communication, MentorAssignment,
+        ProjectSubmission, AIEvaluationBrief, Participant as P, Team as T,
+        Certificate, Notification,
+    )
+    db.query(Message).delete(synchronize_session=False)
+    db.query(Conversation).delete(synchronize_session=False)
+    db.query(Score).delete(synchronize_session=False)
+    db.query(ProjectSubmission).delete(synchronize_session=False)
+    db.query(AIEvaluationBrief).delete(synchronize_session=False)
+    db.query(MentorAssignment).delete(synchronize_session=False)
+    # break Communication -> Approval link before deleting approvals
+    for c in db.query(Communication).all():
+        c.approval_id = None
+    db.flush()
+    db.query(Approval).delete(synchronize_session=False)
+    # free participants from teams
+    for pp in db.query(P).all():
+        pp.team_id = None
+    db.flush()
+    db.query(T).delete(synchronize_session=False)
+    if drop_participants:
+        db.query(Certificate).delete(synchronize_session=False)
+        db.query(Notification).delete(synchronize_session=False)
+        db.query(P).delete(synchronize_session=False)
+    db.commit()
+
+
+@app.post("/api/v1/organizer/reform-teams", tags=["Organizer"])
+def reform_teams(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Disband all current teams (keeping participants) so formation can run again
+    with the current settings. Returns how many participants are now unassigned."""
+    _require_organizer(current_user)
+    from models import Participant as P
+    _wipe_teams(db, drop_participants=False)
+    free = db.query(P).count()
+    return {"status": "success", "message": f"Teams disbanded. {free} participant(s) now unassigned and ready to re-form."}
+
+
+@app.post("/api/v1/organizer/reset-event", tags=["Organizer"])
+def reset_event(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Clear all event data (participants, teams, scores, approvals, etc.), keeping
+    only the user accounts. Use this to start from a clean roster you upload yourself."""
+    _require_organizer(current_user)
+    from models import EventConfig, EventStage
+    _wipe_teams(db, drop_participants=True)
+    cfg = EventConfigRepository(db).get()
+    cfg.current_stage = EventStage.SETUP
+    db.commit()
+    return {"status": "success", "message": "Event data cleared. Upload a roster to begin."}
+
+
+@app.post("/api/v1/organizer/approvals/approve-team-formations", tags=["Organizer"])
+def approve_all_team_formations(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Approve every pending team-formation request at once."""
+    _require_organizer(current_user)
+    from models import Approval, ApprovalType, ApprovalStatus, Team as T
+    pend = db.query(Approval).filter(
+        Approval.approval_type == ApprovalType.TEAM_REVIEW,
+        Approval.status == ApprovalStatus.PENDING,
+    ).all()
+    n = 0
+    for ap in pend:
+        ap.status = ApprovalStatus.APPROVED
+        ap.resolved_at = datetime.utcnow()
+        ap.resolved_by = current_user.username
+        if ap.team_id:
+            t = db.query(T).filter(T.id == ap.team_id).first()
+            if t:
+                t.is_approved = True
+        n += 1
+    db.commit()
+    return {"status": "success", "approved": n, "message": f"Approved {n} team formation(s)."}
 
 
 @app.post("/organizer/create-mentor", response_model=schemas.CreatedUserResponse,

@@ -76,6 +76,32 @@ export default function Participants() {
     }
   };
 
+  const handleReform = async () => {
+    setBusy(true); setMsg("");
+    try {
+      await postWithAuth("/api/v1/organizer/reform-teams", {});
+      const res = await postWithAuth("/api/v1/trigger-team-formation", {});
+      setMsg(res?.teams_formed != null
+        ? `Re-formed ${res.teams_formed} team(s) from the current participants with the latest settings.`
+        : "Teams re-formed.");
+      await load();
+    } catch (e) {
+      setMsg("Could not re-form teams. Make sure participants are loaded.");
+    } finally { setBusy(false); }
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm("Clear ALL event data (participants, teams, scores, approvals)? Accounts stay. Use this to start from your own roster.")) return;
+    setBusy(true); setMsg("");
+    try {
+      await postWithAuth("/api/v1/organizer/reset-event", {});
+      setMsg("Event cleared. Upload your roster to begin.");
+      await load();
+    } catch (e) {
+      setMsg("Reset failed.");
+    } finally { setBusy(false); }
+  };
+
   const downloadSample = () => {
     const sample = [
       "name,email,institution,skill_tags,experience",
@@ -117,6 +143,14 @@ export default function Participants() {
           <button onClick={handleForm} disabled={busy}
             className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[12px] font-semibold transition-colors disabled:opacity-50">
             Form teams
+          </button>
+          <button onClick={handleReform} disabled={busy}
+            className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[12px] font-semibold transition-colors disabled:opacity-50">
+            Re-form teams
+          </button>
+          <button onClick={handleReset} disabled={busy}
+            className="px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[12px] font-semibold transition-colors disabled:opacity-50">
+            Reset event
           </button>
           <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={handleFile} className="hidden" />
         </div>
