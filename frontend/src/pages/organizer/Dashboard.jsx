@@ -3,7 +3,7 @@ import DashboardLayout from "../../components/DashboardLayout";
 import HeroCard from "../../components/HeroCard";
 import LineChart from "../../components/LineChart";
 import PendingApprovalsSection from "../../components/ApprovalCard";
-import { fetchWithAuth, postWithAuth, getRole } from "../../api";
+import { fetchWithAuth, postWithAuth, putWithAuth, getRole } from "../../api";
 
 import Teams from "./Teams";
 import Approvals from "./Approvals";
@@ -136,6 +136,39 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    id: "comms",
+    label: "Communications",
+    badge: null,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 4h16v12H5.17L4 17.17V4z" />
+        <path d="M8 9h8M8 12h5" />
+      </svg>
+    ),
+  },
+  {
+    id: "timeline",
+    label: "Timeline",
+    badge: null,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    ),
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    badge: null,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    ),
+  },
 ];
 
 const pageContent = {
@@ -171,6 +204,21 @@ const pageContent = {
     title: "Certificates",
     description:
       "Generate and publish hackathon certificates for participants.",
+  },
+  comms: {
+    title: "Communications",
+    description:
+      "Draft stage messages with AI, preview, send, and track delivery per recipient.",
+  },
+  timeline: {
+    title: "Event Timeline",
+    description:
+      "Track the current event stage and a live log of system actions.",
+  },
+  settings: {
+    title: "Event Settings",
+    description:
+      "Configure team distribution rules and scoring weights for the event.",
   },
 };
 
@@ -307,6 +355,60 @@ export default function OrganizerDashboard() {
   const [active, setActive] = useState("dashboard");
   const [dashboardData, setDashboardData] = useState(null);
   const [triggerLoading, setTriggerLoading] = useState(false);
+  const [config, setConfig] = useState(null);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configMsg, setConfigMsg] = useState("");
+  const [activity, setActivity] = useState([]);
+  const [advancing, setAdvancing] = useState(false);
+  const [commType, setCommType] = useState("team_welcome");
+  const [commSubject, setCommSubject] = useState("");
+  const [commBody, setCommBody] = useState("");
+  const [commDrafting, setCommDrafting] = useState(false);
+  const [commSending, setCommSending] = useState(false);
+  const [commLog, setCommLog] = useState([]);
+  const [commMsg, setCommMsg] = useState("");
+  const [certMsg, setCertMsg] = useState("");
+
+  useEffect(() => {
+    if (active === "settings" && !config) {
+      fetchWithAuth("/api/v1/organizer/event-config")
+        .then((c) => c && setConfig(c))
+        .catch((e) => console.error("Failed to load event config:", e));
+    }
+  }, [active, config]);
+
+  const updateConfigField = (field, value) =>
+    setConfig((prev) => ({ ...prev, [field]: value }));
+
+  const weightsSum = config
+    ? ["weight_innovation","weight_technical_depth","weight_presentation","weight_feasibility","weight_impact"]
+        .reduce((a, k) => a + Number(config[k] || 0), 0)
+    : 0;
+
+  const handleSaveConfig = async () => {
+    setSavingConfig(true);
+    setConfigMsg("");
+    try {
+      const payload = {
+        event_name: config.event_name,
+        team_size: Number(config.team_size),
+        max_same_institution: Number(config.max_same_institution),
+        required_skills: config.required_skills || "",
+        weight_innovation: Number(config.weight_innovation),
+        weight_technical_depth: Number(config.weight_technical_depth),
+        weight_presentation: Number(config.weight_presentation),
+        weight_feasibility: Number(config.weight_feasibility),
+        weight_impact: Number(config.weight_impact),
+        anomaly_threshold: Number(config.anomaly_threshold),
+      };
+      const updated = await putWithAuth("/api/v1/organizer/event-config", payload);
+      if (updated) { setConfig(updated); setConfigMsg("Saved."); }
+    } catch (e) {
+      setConfigMsg("Failed to save. Check the values and try again.");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -320,6 +422,71 @@ export default function OrganizerDashboard() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (active === "timeline") {
+      if (!config) {
+        fetchWithAuth("/api/v1/organizer/event-config").then((c) => c && setConfig(c)).catch(() => {});
+      }
+      fetchWithAuth("/api/v1/organizer/activity-log").then((a) => a && setActivity(a)).catch(() => {});
+    }
+  }, [active, config]);
+
+  const STAGES = ["SETUP", "TEAM_FORMATION", "EVALUATION", "RESULTS", "COMPLETED"];
+  const handleAdvanceStage = async () => {
+    setAdvancing(true);
+    try {
+      const res = await postWithAuth("/api/v1/organizer/advance-stage", {});
+      if (res) {
+        setConfig((prev) => (prev ? { ...prev, current_stage: res.current_stage } : prev));
+        const a = await fetchWithAuth("/api/v1/organizer/activity-log");
+        if (a) setActivity(a);
+      }
+    } catch (e) {
+      console.error("Advance stage failed:", e);
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (active === "comms") {
+      fetchWithAuth("/api/v1/organizer/communications").then((l) => l && setCommLog(l)).catch(() => {});
+    }
+  }, [active]);
+
+  const handleDraftComm = async () => {
+    setCommDrafting(true);
+    setCommMsg("");
+    try {
+      const d = await postWithAuth("/api/v1/organizer/communications/draft", { stage: commType });
+      if (d) { setCommSubject(d.subject); setCommBody(d.body); }
+    } catch (e) {
+      setCommMsg("Could not draft. Try again.");
+    } finally {
+      setCommDrafting(false);
+    }
+  };
+
+  const handleSendComm = async () => {
+    if (!commSubject || !commBody) { setCommMsg("Draft or write a message first."); return; }
+    setCommSending(true);
+    setCommMsg("");
+    try {
+      const res = await postWithAuth("/api/v1/organizer/communications/send", {
+        communication_type: commType, subject: commSubject, body: commBody,
+      });
+      if (res) {
+        setCommMsg(res.message);
+        const l = await fetchWithAuth("/api/v1/organizer/communications");
+        if (l) setCommLog(l);
+      }
+    } catch (e) {
+      setCommMsg("Send failed. Check the message and try again.");
+    } finally {
+      setCommSending(false);
+    }
+  };
+
   const handleTriggerFormation = async () => {
     setTriggerLoading(true);
     try {
@@ -331,9 +498,27 @@ export default function OrganizerDashboard() {
     }
   };
 
+  const navItemsDynamic = navItems.map((item) => {
+    if (!dashboardData) {
+      return ["participants", "teams", "approvals"].includes(item.id)
+        ? { ...item, badge: null }
+        : item;
+    }
+    if (item.id === "participants") return { ...item, badge: String(dashboardData.total_participants) };
+    if (item.id === "teams") return { ...item, badge: String(dashboardData.teams_formed) };
+    if (item.id === "approvals") return { ...item, badge: dashboardData.pending_approvals ? String(dashboardData.pending_approvals) : null };
+    return item;
+  });
+
+  const chartDateLabels = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  });
+
   return (
     <DashboardLayout
-      navItems={navItems}
+      navItems={navItemsDynamic}
       pageContent={pageContent}
       active={active}
       setActive={setActive}
@@ -568,22 +753,7 @@ export default function OrganizerDashboard() {
             )}
 
             <div className="flex justify-between mt-1 px-1">
-              {[
-                "Apr 14",
-                "Apr 15",
-                "Apr 16",
-                "Apr 17",
-                "Apr 18",
-                "Apr 19",
-                "Apr 20",
-                "Apr 21",
-                "Apr 22",
-                "Apr 23",
-                "Apr 24",
-                "Apr 25",
-                "Apr 26",
-                "Apr 27",
-              ].map((d, i) => (
+              {chartDateLabels.map((d, i) => (
                 <span
                   key={i}
                   className={`text-[9px] text-slate-600 ${i % 2 !== 0 ? "hidden sm:inline" : ""}`}
@@ -873,11 +1043,9 @@ export default function OrganizerDashboard() {
                       "/api/v1/organizer/certificates/generate",
                       {},
                     );
-                    alert(
-                      `Successfully generated ${res.generated_count} certificates!`,
-                    );
+                    setCertMsg(`Generated ${res.generated_count} certificates.`);
                   } catch (e) {
-                    alert("Failed to generate certificates");
+                    setCertMsg("Failed to generate certificates.");
                   }
                 }}
                 className="px-5 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-[13px] font-semibold transition-colors w-full"
@@ -901,11 +1069,9 @@ export default function OrganizerDashboard() {
                       "/api/v1/organizer/certificates/publish",
                       {},
                     );
-                    alert(
-                      `Successfully published ${res.published_count} certificates!`,
-                    );
+                    setCertMsg(`Published ${res.published_count} certificates.`);
                   } catch (e) {
-                    alert("Failed to publish certificates");
+                    setCertMsg("Failed to publish certificates.");
                   }
                 }}
                 className="px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold transition-colors w-full"
@@ -914,6 +1080,12 @@ export default function OrganizerDashboard() {
               </button>
             </div>
           </div>
+
+          {certMsg && (
+            <div className="mt-5 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 text-[13px]">
+              {certMsg}
+            </div>
+          )}
 
           <div className="mt-6">
             <h4 className="text-slate-300 font-medium text-[13px] mb-3">
@@ -952,6 +1124,243 @@ export default function OrganizerDashboard() {
         </div>
       )}
 
+      {active === "comms" && (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-white font-semibold text-[15px] mb-1">Compose a stage message</h3>
+            <p className="text-slate-500 text-[13px] mb-5">Pick a stage, let AI draft it, edit if needed, then send.</p>
+
+            <div className="flex gap-2 mb-5">
+              <button onClick={() => setCommType("team_welcome")}
+                className={commType === "team_welcome"
+                  ? "px-4 py-2 rounded-lg bg-indigo-500 text-white text-[13px] font-semibold"
+                  : "px-4 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 text-[13px]"}>
+                Team assignment welcome
+              </button>
+              <button onClick={() => setCommType("eval_reminder")}
+                className={commType === "eval_reminder"
+                  ? "px-4 py-2 rounded-lg bg-indigo-500 text-white text-[13px] font-semibold"
+                  : "px-4 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 text-[13px]"}>
+                Evaluation reminder
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="text-slate-400 text-[12px]">Subject</span>
+                <input type="text" value={commSubject} onChange={(e) => setCommSubject(e.target.value)}
+                  placeholder="Draft with AI or type your own"
+                  className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <span className="text-slate-400 text-[12px]">Message body (preview)</span>
+                <textarea value={commBody} onChange={(e) => setCommBody(e.target.value)} rows={8}
+                  placeholder="Draft with AI or type your own"
+                  className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500 resize-y" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-5">
+              <button onClick={handleDraftComm} disabled={commDrafting}
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-50">
+                {commDrafting ? "Drafting..." : "Draft with AI"}
+              </button>
+              <button onClick={handleSendComm} disabled={commSending}
+                className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-50">
+                {commSending ? "Sending..." : "Send to recipients"}
+              </button>
+              {commMsg && <span className="text-[12px] text-slate-400">{commMsg}</span>}
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-white font-semibold text-[15px] mb-4">Delivery log</h3>
+            {commLog.length === 0 ? (
+              <div className="text-slate-400 text-sm py-6">No messages sent yet.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-slate-500 text-[11px] uppercase">
+                      <th className="py-2 pr-4">Recipient</th>
+                      <th className="py-2 pr-4">Type</th>
+                      <th className="py-2 pr-4">Subject</th>
+                      <th className="py-2 pr-4">Status</th>
+                      <th className="py-2">Sent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commLog.map((c) => (
+                      <tr key={c.id} className="border-t border-slate-800 text-[12px]">
+                        <td className="py-2 pr-4 text-slate-300">{c.recipient_name}<div className="text-slate-600 text-[11px]">{c.recipient_email}</div></td>
+                        <td className="py-2 pr-4 text-slate-400">{c.communication_type}</td>
+                        <td className="py-2 pr-4 text-slate-400 max-w-xs truncate">{c.subject}</td>
+                        <td className="py-2 pr-4"><span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-300 text-[10px] font-semibold">{c.status}</span></td>
+                        <td className="py-2 text-slate-500 text-[11px]">{c.sent_at ? new Date(c.sent_at).toLocaleString() : "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {active === "timeline" && (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-white font-semibold text-[15px]">Event Pipeline</h3>
+                <p className="text-slate-500 text-[13px] mt-1">The fixed sequence of stages for this event.</p>
+              </div>
+              <button onClick={handleAdvanceStage} disabled={advancing || (config && config.current_stage === "COMPLETED")}
+                className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-50">
+                {advancing ? "Advancing..." : "Advance stage"}
+              </button>
+            </div>
+            <div className="flex items-center">
+              {STAGES.map((stage, i) => {
+                const curIdx = config ? STAGES.indexOf(config.current_stage) : 0;
+                const done = i < curIdx;
+                const isCurrent = i === curIdx;
+                const dotCls = isCurrent
+                  ? "bg-indigo-500 border-indigo-400 text-white"
+                  : done
+                  ? "bg-emerald-500/20 border-emerald-500 text-emerald-300"
+                  : "bg-slate-800 border-slate-700 text-slate-500";
+                return (
+                  <div key={stage} className="flex items-center flex-1 last:flex-none">
+                    <div className="flex flex-col items-center">
+                      <div className={"w-9 h-9 rounded-full border flex items-center justify-center text-[12px] font-semibold " + dotCls}>
+                        {i + 1}
+                      </div>
+                      <span className={"mt-2 text-[11px] " + (isCurrent ? "text-white" : "text-slate-500")}>
+                        {stage.replace("_", " ")}
+                      </span>
+                    </div>
+                    {i < STAGES.length - 1 && (
+                      <div className={"h-0.5 flex-1 mx-2 " + (i < curIdx ? "bg-emerald-500/50" : "bg-slate-700")} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-white font-semibold text-[15px] mb-4">Activity Log</h3>
+            {activity.length === 0 ? (
+              <div className="text-slate-400 text-sm py-6">No activity recorded yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {activity.map((a, idx) => {
+                  const color = a.category === "APPROVAL" ? "text-amber-300 bg-amber-500/10"
+                    : a.category === "SCORE" ? "text-violet-300 bg-violet-500/10"
+                    : a.category === "TEAM" ? "text-emerald-300 bg-emerald-500/10"
+                    : "text-slate-300 bg-slate-700/40";
+                  return (
+                    <div key={idx} className="flex items-start gap-3 pb-3 border-b border-slate-800 last:border-0">
+                      <span className={"px-2 py-1 rounded-md text-[10px] font-semibold " + color}>{a.category}</span>
+                      <div className="flex-1">
+                        <p className="text-slate-300 text-[13px]">{a.message}</p>
+                        <p className="text-slate-600 text-[11px] mt-0.5">{new Date(a.timestamp).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {active === "settings" && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div className="mb-6">
+            <h3 className="text-white font-semibold text-[15px]">Event Settings</h3>
+            <p className="text-slate-500 text-[13px] mt-1">
+              These rules drive team formation and score consolidation. Changes apply to the next run.
+            </p>
+          </div>
+
+          {!config ? (
+            <div className="text-slate-400 text-sm py-8">Loading configuration...</div>
+          ) : (
+            <div className="space-y-8">
+              <div>
+                <h4 className="text-slate-300 font-medium text-[13px] mb-4">Team distribution rules</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-slate-400 text-[12px]">Event name</span>
+                    <input type="text" value={config.event_name || ""} onChange={(e) => updateConfigField("event_name", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+                  </label>
+                  <label className="block">
+                    <span className="text-slate-400 text-[12px]">Required skills (comma-separated)</span>
+                    <input type="text" value={config.required_skills || ""} onChange={(e) => updateConfigField("required_skills", e.target.value)}
+                      placeholder="e.g. ML, Backend, Frontend"
+                      className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+                  </label>
+                  <label className="block">
+                    <span className="text-slate-400 text-[12px]">Team size</span>
+                    <input type="number" min="2" max="10" value={config.team_size} onChange={(e) => updateConfigField("team_size", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+                  </label>
+                  <label className="block">
+                    <span className="text-slate-400 text-[12px]">Max participants per institution per team</span>
+                    <input type="number" min="1" max="10" value={config.max_same_institution} onChange={(e) => updateConfigField("max_same_institution", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-slate-300 font-medium text-[13px]">Scoring weights</h4>
+                  <span className={weightsSum.toFixed(2) === "1.00" ? "text-[12px] text-emerald-400" : "text-[12px] text-amber-400"}>
+                    Sum: {weightsSum.toFixed(2)}{weightsSum.toFixed(2) === "1.00" ? "" : " (auto-normalised at scoring time)"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {[
+                    ["weight_innovation", "Innovation"],
+                    ["weight_technical_depth", "Technical depth"],
+                    ["weight_presentation", "Presentation"],
+                    ["weight_feasibility", "Feasibility"],
+                    ["weight_impact", "Impact"],
+                  ].map(([key, label]) => (
+                    <label key={key} className="block">
+                      <span className="text-slate-400 text-[12px]">{label}</span>
+                      <input type="number" step="0.05" min="0" max="1" value={config[key]} onChange={(e) => updateConfigField(key, e.target.value)}
+                        className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-slate-300 font-medium text-[13px] mb-4">Anomaly detection</h4>
+                <label className="block max-w-xs">
+                  <span className="text-slate-400 text-[12px]">Threshold (standard deviations)</span>
+                  <input type="number" step="0.1" min="0.5" max="5" value={config.anomaly_threshold} onChange={(e) => updateConfigField("anomaly_threshold", e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-white text-[13px] focus:outline-none focus:border-indigo-500" />
+                </label>
+              </div>
+
+              <div className="flex items-center gap-4 pt-2">
+                <button onClick={handleSaveConfig} disabled={savingConfig}
+                  className="px-5 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-[13px] font-semibold transition-colors disabled:opacity-50">
+                  {savingConfig ? "Saving..." : "Save settings"}
+                </button>
+                {configMsg && <span className="text-[12px] text-slate-400">{configMsg}</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {active === "teams" && <Teams />}
       {active === "approvals" && <Approvals />}
       {/* Placeholder for other nav pages */}
@@ -961,6 +1370,9 @@ export default function OrganizerDashboard() {
         "certificates",
         "teams",
         "approvals",
+        "settings",
+        "timeline",
+        "comms",
       ].includes(active) && (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-16 h-16 rounded-2xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center mb-4">

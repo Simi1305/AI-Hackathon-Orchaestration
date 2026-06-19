@@ -62,6 +62,7 @@ export default function JudgeDashboard() {
   });
   const [submittingScore, setSubmittingScore] = useState(false);
   const [scoreSuccess, setScoreSuccess] = useState(false);
+  const [scoreError, setScoreError] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -109,6 +110,7 @@ export default function JudgeDashboard() {
 
   const handleSubmitScore = async (teamId) => {
     setSubmittingScore(true);
+    setScoreError("");
     try {
       await postWithAuth(`/api/v1/judge/teams/${teamId}/score`, scoringData);
       setScoreSuccess(true);
@@ -120,7 +122,7 @@ export default function JudgeDashboard() {
       }, 1500);
     } catch (err) {
       console.error(err);
-      alert("Failed to submit score");
+      setScoreError("Failed to submit score. Please try again.");
     } finally {
       setSubmittingScore(false);
     }
@@ -407,6 +409,11 @@ export default function JudgeDashboard() {
                                   </div>
                                 ))}
                               </div>
+                              {scoreError && (
+                                <div className="mt-6 px-4 py-2 rounded-lg bg-rose-500/10 text-rose-300 text-sm">
+                                  {scoreError}
+                                </div>
+                              )}
                               <div className="pt-8 flex justify-end">
                                 <button 
                                   onClick={() => handleSubmitScore(team.id)}

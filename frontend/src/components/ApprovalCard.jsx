@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchWithAuth, postWithAuth } from "../api";
 
 /* ─────────────────────────────────────────────────────────
    PENDING APPROVALS DATA
@@ -27,7 +28,7 @@ const initialApprovals = [
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
-    meta: "36 teams · AI-balanced by skill",
+    meta: "AI-balanced by skill, experience & institution",
     accentBg: "bg-indigo-500/10",
     accentIcon: "bg-indigo-500/15 text-indigo-400",
     accentBorder: "border-indigo-500/20",
@@ -53,7 +54,7 @@ const initialApprovals = [
         <path d="M16 3.5l2 2-3.5 3.5" />
       </svg>
     ),
-    meta: "14 mentors · matched to 36 teams",
+    meta: "Mentors matched to teams by expertise",
     accentBg: "bg-violet-500/10",
     accentIcon: "bg-violet-500/15 text-violet-400",
     accentBorder: "border-violet-500/20",
@@ -79,7 +80,7 @@ const initialApprovals = [
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
     ),
-    meta: "3 anomalies · judges affected",
+    meta: "Flagged by the anomaly detection engine",
     accentBg: "bg-amber-500/10",
     accentIcon: "bg-amber-500/15 text-amber-400",
     accentBorder: "border-amber-500/20",
@@ -103,7 +104,7 @@ const initialApprovals = [
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
       </svg>
     ),
-    meta: "89 submissions ranked · final",
+    meta: "Final rankings ready to publish",
     accentBg: "bg-emerald-500/10",
     accentIcon: "bg-emerald-500/15 text-emerald-400",
     accentBorder: "border-emerald-500/20",
@@ -269,24 +270,138 @@ export function ApprovalCard({ item, status, onApprove, onReject }) {
   );
 }
 
-/* ── Pending Approvals section ── */
+/* ── Type -> display metadata (icons, copy, accents) ── */
+const ICONS = {
+  team: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  mentor: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.5l2 2-3.5 3.5" />
+    </svg>
+  ),
+  alert: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  trophy: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  ),
+  mail: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16v12H5.17L4 17.17V4z" /><path d="M8 9h8M8 12h5" />
+    </svg>
+  ),
+  arrow: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+    </svg>
+  ),
+};
+
+const TYPE_META = {
+  TEAM_REVIEW: {
+    title: "Team Formation Review",
+    description: "AI-generated teams are awaiting organizer approval before participants are notified.",
+    meta: "AI-balanced by skill, experience & institution",
+    accentBg: "bg-indigo-500/10", accentIcon: "bg-indigo-500/15 text-indigo-400", accentBorder: "border-indigo-500/20",
+    icon: ICONS.team,
+  },
+  MENTOR_ASSIGNMENT_REVIEW: {
+    title: "Mentor Assignment Review",
+    description: "AI matched mentors to teams based on each team's skill gaps and mentor expertise.",
+    meta: "Mentors matched by expertise",
+    accentBg: "bg-violet-500/10", accentIcon: "bg-violet-500/15 text-violet-400", accentBorder: "border-violet-500/20",
+    icon: ICONS.mentor,
+  },
+  ANOMALY_REVIEW: {
+    title: "Score Anomaly Review",
+    description: "Unusual scoring deviations were detected and flagged for human review.",
+    meta: "Flagged by the anomaly detection engine",
+    accentBg: "bg-amber-500/10", accentIcon: "bg-amber-500/15 text-amber-400", accentBorder: "border-amber-500/20",
+    icon: ICONS.alert,
+  },
+  RESULT_PUBLICATION_REVIEW: {
+    title: "Leaderboard Publication Approval",
+    description: "Final rankings have been computed and are ready to publish to all participants.",
+    meta: "Final rankings ready to publish",
+    accentBg: "bg-emerald-500/10", accentIcon: "bg-emerald-500/15 text-emerald-400", accentBorder: "border-emerald-500/20",
+    icon: ICONS.trophy,
+  },
+  MESSAGE_SENDING_REVIEW: {
+    title: "Communication Review",
+    description: "A stage communication is drafted and awaiting approval before it is sent.",
+    meta: "Awaiting send approval",
+    accentBg: "bg-sky-500/10", accentIcon: "bg-sky-500/15 text-sky-400", accentBorder: "border-sky-500/20",
+    icon: ICONS.mail,
+  },
+  PROGRESSION_INVITE_REVIEW: {
+    title: "Progression Invite Review",
+    description: "Qualifying teams are ready to receive their progression invitations.",
+    meta: "Progression invites ready",
+    accentBg: "bg-fuchsia-500/10", accentIcon: "bg-fuchsia-500/15 text-fuchsia-400", accentBorder: "border-fuchsia-500/20",
+    icon: ICONS.arrow,
+  },
+};
+
+const DEFAULT_META = {
+  title: "Approval Required",
+  description: "An AI-generated action is awaiting your review.",
+  meta: "Awaiting review",
+  accentBg: "bg-slate-500/10", accentIcon: "bg-slate-500/15 text-slate-400", accentBorder: "border-slate-500/20",
+  icon: ICONS.alert,
+};
+
+/* ── Pending Approvals section (wired to live backend) ── */
 export default function PendingApprovalsSection() {
-  const [statuses, setStatuses] = useState(
-    Object.fromEntries(initialApprovals.map((a) => [a.id, "pending"])),
-  );
+  const [approvals, setApprovals] = useState([]);
+  const [statuses, setStatuses] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  const approve = (id) => setStatuses((s) => ({ ...s, [id]: "approved" }));
-  const reject = (id) => setStatuses((s) => ({ ...s, [id]: "rejected" }));
+  const load = async () => {
+    try {
+      const data = await fetchWithAuth("/approvals/pending");
+      if (data) setApprovals(data);
+    } catch (e) {
+      console.error("Failed to load pending approvals:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const pendingCount = Object.values(statuses).filter(
-    (s) => s === "pending",
-  ).length;
-  const approvedCount = Object.values(statuses).filter(
-    (s) => s === "approved",
-  ).length;
-  const rejectedCount = Object.values(statuses).filter(
-    (s) => s === "rejected",
-  ).length;
+  useEffect(() => {
+    load();
+  }, []);
+
+  const approve = async (id) => {
+    setStatuses((s) => ({ ...s, [id]: "approved" }));
+    try {
+      await postWithAuth(`/approvals/${id}/approve`, { resolved_by: "admin" });
+    } catch (e) {
+      console.error(e);
+    }
+    setTimeout(load, 900);
+  };
+
+  const reject = async (id) => {
+    setStatuses((s) => ({ ...s, [id]: "rejected" }));
+    try {
+      await postWithAuth(`/approvals/${id}/reject`, {
+        reason: "Rejected by organizer from the dashboard.",
+        resolved_by: "admin",
+      });
+    } catch (e) {
+      console.error(e);
+    }
+    setTimeout(load, 900);
+  };
+
+  const pendingCount = approvals.filter((a) => !statuses[a.id]).length;
 
   return (
     <div className="mt-3">
@@ -294,10 +409,7 @@ export default function PendingApprovalsSection() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="flex items-center gap-2.5 mb-0.5">
-            <h2 className="text-white font-semibold text-[15px]">
-              Pending Approvals
-            </h2>
-            {/* Live count badge */}
+            <h2 className="text-white font-semibold text-[15px]">Pending Approvals</h2>
             {pendingCount > 0 && (
               <span className="flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400">
                 <span className="relative flex h-1.5 w-1.5">
@@ -312,36 +424,13 @@ export default function PendingApprovalsSection() {
             AI-generated actions awaiting organizer review &amp; approval
           </p>
         </div>
-
-        {/* Summary pills */}
-        <div className="hidden sm:flex items-center gap-2">
-          {approvedCount > 0 && (
-            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              {approvedCount} approved
-            </span>
-          )}
-          {rejectedCount > 0 && (
-            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400">
-              {rejectedCount} rejected
-            </span>
-          )}
-        </div>
       </div>
 
       {/* Divider with AI label */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 h-px bg-slate-800" />
         <span className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-medium">
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
           AI assists · Humans approve
@@ -349,18 +438,32 @@ export default function PendingApprovalsSection() {
         <div className="flex-1 h-px bg-slate-800" />
       </div>
 
-      {/* 4-card responsive grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {initialApprovals.map((item) => (
-          <ApprovalCard
-            key={item.id}
-            item={item}
-            status={statuses[item.id]}
-            onApprove={() => approve(item.id)}
-            onReject={() => reject(item.id)}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <div className="text-slate-500 text-sm py-8 text-center">Loading approvals...</div>
+      ) : approvals.length === 0 ? (
+        <div className="text-slate-500 text-sm py-8 text-center">
+          No pending approvals — you're all caught up.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {approvals.map((a) => {
+            const base = TYPE_META[a.approval_type] || DEFAULT_META;
+            const item = {
+              ...base,
+              meta: a.team_id ? `${base.meta} · Team #${a.team_id}` : base.meta,
+            };
+            return (
+              <ApprovalCard
+                key={a.id}
+                item={item}
+                status={statuses[a.id] || "pending"}
+                onApprove={() => approve(a.id)}
+                onReject={() => reject(a.id)}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

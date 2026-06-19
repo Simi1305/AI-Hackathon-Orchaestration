@@ -520,4 +520,114 @@ class NotificationRead(BaseModel):
         from_attributes = True
 
 class NotificationCount(BaseModel):
-    count: int
+    count: int
+
+# ══════════════════════════════════════════════════════════════
+# EVENT CONFIG  (committee-defined distribution + scoring rules)
+# ══════════════════════════════════════════════════════════════
+
+class EventConfigRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:                     int
+    event_name:             str
+    current_stage:          EventStage
+    team_size:              int
+    max_same_institution:   int
+    required_skills:        Optional[str]
+    weight_innovation:      float
+    weight_technical_depth: float
+    weight_presentation:    float
+    weight_feasibility:     float
+    weight_impact:          float
+    anomaly_threshold:      float
+
+
+class EventConfigUpdate(BaseModel):
+    """Partial update — only the fields the committee changes are sent."""
+    event_name:             Optional[str]   = Field(None, min_length=2, max_length=200)
+    team_size:              Optional[int]   = Field(None, ge=2, le=10)
+    max_same_institution:   Optional[int]   = Field(None, ge=1, le=10)
+    required_skills:        Optional[str]   = None
+    weight_innovation:      Optional[float] = Field(None, ge=0.0, le=1.0)
+    weight_technical_depth: Optional[float] = Field(None, ge=0.0, le=1.0)
+    weight_presentation:    Optional[float] = Field(None, ge=0.0, le=1.0)
+    weight_feasibility:     Optional[float] = Field(None, ge=0.0, le=1.0)
+    weight_impact:          Optional[float] = Field(None, ge=0.0, le=1.0)
+    anomaly_threshold:      Optional[float] = Field(None, ge=0.5, le=5.0)
+
+
+# ══════════════════════════════════════════════════════════════
+# ACTIVITY LOG + PIPELINE STAGE
+# ══════════════════════════════════════════════════════════════
+
+class ActivityEntry(BaseModel):
+    timestamp: datetime
+    category:  str    # "TEAM" | "APPROVAL" | "SCORE" | "STAGE"
+    message:   str
+
+
+class StageAdvanceResponse(BaseModel):
+    current_stage: EventStage
+    message:       str
+
+
+# ══════════════════════════════════════════════════════════════
+# COMMUNICATIONS (stage messaging: draft -> preview -> send -> log)
+# ══════════════════════════════════════════════════════════════
+
+class CommunicationDraftRequest(BaseModel):
+    stage: str = Field(..., description="team_welcome | eval_reminder")
+
+
+class CommunicationDraft(BaseModel):
+    subject: str
+    body:    str
+
+
+class CommunicationSendRequest(BaseModel):
+    communication_type: str
+    subject:            str = Field(..., min_length=2, max_length=300)
+    body:               str = Field(..., min_length=2)
+
+
+class CommunicationLogEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:                 int
+    recipient_name:     Optional[str]
+    recipient_email:    Optional[str]
+    communication_type: Optional[str]
+    subject:            Optional[str]
+    status:             CommunicationStatus
+    sent_at:            Optional[datetime]
+
+
+class CommunicationSendResponse(BaseModel):
+    sent:    int
+    message: str
+
+
+# ══════════════════════════════════════════════════════════════
+# CONVERSATIONAL EVENT CONFIGURATION (describe event -> config)
+# ══════════════════════════════════════════════════════════════
+
+class EventConfigFromTextRequest(BaseModel):
+    description: str = Field(..., min_length=10, max_length=4000)
+
+
+class EventConfigProposal(BaseModel):
+    understood:             bool
+    summary:                str
+    clarifications:         list[str] = []
+    stages:                 list[str] = []
+    # Proposed config (only the fields the description specified)
+    team_size:              Optional[int]   = None
+    max_same_institution:   Optional[int]   = None
+    required_skills:        Optional[str]   = None
+    weight_innovation:      Optional[float] = None
+    weight_technical_depth: Optional[float] = None
+    weight_presentation:    Optional[float] = None
+    weight_feasibility:     Optional[float] = None
+    weight_impact:          Optional[float] = None
+    anomaly_threshold:      Optional[float] = None

@@ -1050,6 +1050,200 @@ def create_participant(
     )
 
 
+# ── EVENT CONFIG (distribution + scoring rules) ───────────────
+@app.get("/api/v1/organizer/event-config", response_model=schemas.EventConfigRead, tags=["Organizer"])
+def get_event_config(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the singleton event configuration (rules the committee can edit)."""
+    _require_organizer(current_user)
+    return EventConfigRepository(db).get()
+
+
+@app.put("/api/v1/organizer/event-config", response_model=schemas.EventConfigRead, tags=["Organizer"])
+def update_event_config(
+    req: schemas.EventConfigUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update distribution + scoring rules. Only provided fields are changed."""
+    _require_organizer(current_user)
+    config = EventConfigRepository(db).get()
+
+    updates = req.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(config, field, value)
+
+    config.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(config)
+    logger.info(f"Organizer '{current_user.username}' updated event config: {list(updates.keys())}")
+    return config
+
+
+# ── PIPELINE STAGE + ACTIVITY LOG ─────────────────────────────
+_STAGE_ORDER = ["SETUP", "TEAM_FORMATION", "EVALUATION", "RESULTS", "COMPLETED"]
+
+
+@app.post("/api/v1/organizer/advance-stage", response_model=schemas.StageAdvanceResponse, tags=["Organizer"])
+def advance_stage(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Move the event to the next stage in the fixed pipeline."""
+    _require_organizer(current_user)
+    from models import EventStage
+    config = EventConfigRepository(db).get()
+    cur = config.current_stage.value if hasattr(config.current_stage, "value") else str(config.current_stage)
+    idx = _STAGE_ORDER.index(cur) if cur in _STAGE_ORDER else 0
+    nxt = _STAGE_ORDER[min(idx + 1, len(_STAGE_ORDER) - 1)]
+    config.current_stage = EventStage(nxt)
+    config.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(config)
+    logger.info(f"Organizer '{current_user.username}' advanced stage to {nxt}")
+    return schemas.StageAdvanceResponse(current_stage=config.current_stage, message=f"Event advanced to {nxt}.")
+
+
+@app.get("/api/v1/organizer/activity-log", response_model=list[schemas.ActivityEntry], tags=["Organizer"])
+def activity_log(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """A unified, time-sorted feed of real system actions, built from live records."""
+    _require_organizer(current_user)
+    from models import Team as TeamModel, Score as ScoreModel
+
+    entries: list[schemas.ActivityEntry] = []
+
+    for team in db.query(TeamModel).all():
+        if team.created_at:
+            entries.append(schemas.ActivityEntry(
+                timestamp=team.created_at, category="TEAM",
+                message=f"Team '{team.name}' was formed."))
+
+    for ap in db.query(Approval).all():
+        status_txt = ap.status.value if hasattr(ap.status, "value") else str(ap.status)
+        type_txt = ap.approval_type.value if hasattr(ap.approval_type, "value") else str(ap.approval_type)
+        ts = ap.resolved_at or ap.requested_at
+        if ts:
+            entries.append(schemas.ActivityEntry(
+                timestamp=ts, category="APPROVAL",
+                message=f"Approval '{type_txt}' is {status_txt}."))
+
+    for sc in db.query(ScoreModel).all():
+        if sc.submitted_at:
+            entries.append(schemas.ActivityEntry(
+                timestamp=sc.submitted_at, category="SCORE",
+                message=f"Judge #{sc.judge_id} scored Team #{sc.team_id}"
+                        + (" (flagged as anomalous)." if sc.is_anomalous else ".")))
+
+    entries.sort(key=lambda e: e.timestamp, reverse=True)
+    return entries[:30]
+
+
+# ── COMMUNICATIONS (stage messaging) ──────────────────────────
+_COMM_TEMPLATES = {
+    "team_welcome": {
+        "subject": "Welcome to the Hackathon - Your Team is Ready!",
+        "body": ("Hi there,\n\nWelcome to the hackathon! Your team has been formed and you can now "
+                 "see your teammates, your assigned mentor, and your challenge in your participant "
+                 "dashboard. We are excited to see what you build.\n\nBest of luck,\nThe Organizing Committee"),
+        "prompt": ("Write a short, warm welcome email (under 6 sentences) to a hackathon participant "
+                   "letting them know their team has been formed and they can view teammates, mentor, "
+                   "and challenge in their dashboard. Friendly and encouraging."),
+    },
+    "eval_reminder": {
+        "subject": "Reminder: Please Complete Your Evaluations",
+        "body": ("Hello,\n\nThis is a friendly reminder to complete your assigned team evaluations before "
+                 "the deadline. Each submission includes an AI-generated brief to help you review quickly. "
+                 "Please submit your rubric scores through your judge dashboard.\n\nThank you,\nThe Organizing Committee"),
+        "prompt": ("Write a short, professional reminder email (under 6 sentences) to a hackathon judge "
+                   "asking them to complete their team evaluations before the deadline, mentioning the "
+                   "AI-generated briefs that help them review faster."),
+    },
+}
+
+
+@app.post("/api/v1/organizer/communications/draft", response_model=schemas.CommunicationDraft, tags=["Communications"])
+def draft_communication(
+    req: schemas.CommunicationDraftRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Draft a stage communication with the LLM (falls back to a template if AI is unavailable)."""
+    _require_organizer(current_user)
+    tpl = _COMM_TEMPLATES.get(req.stage)
+    if not tpl:
+        raise HTTPException(status_code=400, detail="Unknown stage. Use team_welcome or eval_reminder.")
+
+    try:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("no key")
+        client = genai.Client(api_key=api_key)
+        prompt = (tpl["prompt"] + "\n\nReturn ONLY valid JSON: {\"subject\": \"...\", \"body\": \"...\"}")
+        from google.genai import types as genai_types
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        data = json.loads(response.text)
+        return schemas.CommunicationDraft(subject=data.get("subject", tpl["subject"]),
+                                          body=data.get("body", tpl["body"]))
+    except Exception as exc:
+        logger.warning(f"Comm draft fell back to template: {exc}")
+        return schemas.CommunicationDraft(subject=tpl["subject"], body=tpl["body"])
+
+
+@app.post("/api/v1/organizer/communications/send", response_model=schemas.CommunicationSendResponse, tags=["Communications"])
+def send_communication(
+    req: schemas.CommunicationSendRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Simulate delivery: create one Communication record per recipient with status SENT."""
+    _require_organizer(current_user)
+    from models import Participant as ParticipantModel, Judge as JudgeModel, Communication, CommunicationStatus
+
+    if req.communication_type == "team_welcome":
+        recipients = [(p.name, p.email) for p in db.query(ParticipantModel).all()]
+    elif req.communication_type == "eval_reminder":
+        recipients = [(j.name, j.email) for j in db.query(JudgeModel).all()]
+    else:
+        raise HTTPException(status_code=400, detail="Unknown communication_type.")
+
+    if not recipients:
+        raise HTTPException(status_code=404, detail="No recipients found for this communication.")
+
+    now = datetime.utcnow()
+    for name, email in recipients:
+        db.add(Communication(
+            recipient_email=email, recipient_name=name,
+            communication_type=req.communication_type,
+            subject=req.subject, body=req.body,
+            status=CommunicationStatus.SENT, sent_at=now,
+        ))
+    db.commit()
+    logger.info(f"Organizer '{current_user.username}' sent '{req.communication_type}' to {len(recipients)} recipients")
+    return schemas.CommunicationSendResponse(sent=len(recipients),
+                                             message=f"Delivered to {len(recipients)} recipients.")
+
+
+@app.get("/api/v1/organizer/communications", response_model=list[schemas.CommunicationLogEntry], tags=["Communications"])
+def communications_log(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delivery log: every communication record, newest first."""
+    _require_organizer(current_user)
+    from models import Communication
+    rows = db.query(Communication).order_by(Communication.created_at.desc()).limit(100).all()
+    return rows
+
+
 @app.post("/organizer/create-mentor", response_model=schemas.CreatedUserResponse,
           status_code=status.HTTP_201_CREATED, tags=["Organizer"])
 def create_mentor(
@@ -1880,4 +2074,5 @@ def mark_notification_read(notification_id: int, current_user: User = Depends(ge
 def mark_all_notifications_read(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     db.query(models.Notification).filter(models.Notification.user_id == current_user.id, models.Notification.is_read == False).update({"is_read": True})
     db.commit()
-    return {"status": "success"}
+    return {"status": "success"}
+
