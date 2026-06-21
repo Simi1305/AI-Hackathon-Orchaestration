@@ -16,7 +16,7 @@ Design choices:
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool, NullPool
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,12 @@ DATABASE_URL = "sqlite:///./eventflow.db"
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30},
+    # NullPool: give every request its own short-lived SQLite connection instead
+    # of queuing on a tiny shared pool. SQLite connections are cheap, and WAL
+    # handles concurrency — this prevents pool-exhaustion hangs under the
+    # frontend's frequent notification polling.
+    poolclass=NullPool,
     echo=False,        # set True locally to log all SQL
 )
 
@@ -47,6 +52,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")   # enforce FK constraints
+    cursor.execute("PRAGMA busy_timeout=5000") # wait up to 5s for a lock, then error (never hang)
     cursor.close()
 
 # ──────────────────────────────────────────────

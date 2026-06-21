@@ -2166,6 +2166,32 @@ def get_ai_evaluation_brief(team_id: int, current_user: User = Depends(get_curre
     return new_brief
 
 
+def _resolve_judge_record(db: Session, current_user: "User") -> "models.Judge":
+    """Score.judge_id is a FK to judges.id, but auth gives us a users.id.
+    Map a JUDGE-role user to a Judge row: reuse seeded records by position,
+    else find-or-create one by username so the FK is always valid."""
+    judge_users = (
+        db.query(models.User)
+        .filter(models.User.role == UserRole.JUDGE)
+        .order_by(models.User.id)
+        .all()
+    )
+    judges = db.query(models.Judge).order_by(models.Judge.id).all()
+    try:
+        idx = [u.id for u in judge_users].index(current_user.id)
+    except ValueError:
+        idx = -1
+    if 0 <= idx < len(judges):
+        return judges[idx]
+    existing = db.query(models.Judge).filter(models.Judge.name == current_user.username).first()
+    if existing:
+        return existing
+    jr = models.Judge(name=current_user.username, email=f"{current_user.username}@event.local")
+    db.add(jr)
+    db.flush()
+    return jr
+
+
 @app.post("/api/v1/judge/teams/{team_id}/score", tags=["AI Evaluation"])
 def submit_team_score(team_id: int, score_data: schemas.JudgeScoreSubmit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != UserRole.JUDGE:
@@ -2174,9 +2200,13 @@ def submit_team_score(team_id: int, score_data: schemas.JudgeScoreSubmit, curren
     team = db.query(models.Team).filter(models.Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found.")
-        
+
+    # Score.judge_id -> judges.id (not users.id); resolve the judge record first.
+    judge_record = _resolve_judge_record(db, current_user)
+    judge_id = judge_record.id
+
     # Overwrite existing score or create new
-    score = db.query(models.Score).filter(models.Score.team_id == team_id, models.Score.judge_id == current_user.id).first()
+    score = db.query(models.Score).filter(models.Score.team_id == team_id, models.Score.judge_id == judge_id).first()
     
     # Calculate weighted total
     config = db.query(models.EventConfig).first()
@@ -2193,7 +2223,7 @@ def submit_team_score(team_id: int, score_data: schemas.JudgeScoreSubmit, curren
     if not score:
         score = models.Score(
             team_id=team_id,
-            judge_id=current_user.id,
+            judge_id=judge_id,
         )
         db.add(score)
         
