@@ -29,6 +29,19 @@ Organizing a hackathon involves a lot more than collecting registrations. Teams 
 * **Statistically rigorous scoring.** A panel-size-aware anomaly detection engine catches inconsistent or biased judge scores and holds the affected team until a human reviews it.
 * **Reliable, decision-safe architecture.** Event-driven notifications, enum-based approval state machines, and explicit human-reviewed approval gates sit on top of a concurrent SQLite WAL database.
 
+## Organizer control center
+
+Beyond the core pipeline, organizers run the whole event from one dashboard:
+
+* **Event configuration** for team size, institution limit, required skills, scoring weights, and the anomaly threshold.
+* **Live roster upload** from a CSV, with one-click team formation, re-formation, and a clean event reset.
+* **Approval gates** with single and bulk approval, so a full round of team formations can be cleared at once.
+* **Pipeline and activity timeline** that tracks the event stage by stage and highlights anomalies in real time.
+* **Communications center** for stage-based announcements with a per-recipient delivery log.
+* **Certificate management** to generate, review, and publish certificates that participants download from their own portal.
+
+Every screen is backed by live data from the database, with no mock content.
+
 ## System architecture
 
 EventFlow uses an N-tier design. The browser holds the UI and routing, FastAPI handles requests and orchestration, the domain engines hold the real logic, and a repository layer owns all database access.
@@ -43,7 +56,9 @@ The platform is organized as a set of processes that read from and write to dedi
 
 ![Level-1 Data Flow Diagram](docs/dfd.png)
 
-Team-formation and mentor-allocation events flow into the notification engine (P4), which pushes updates to users and publishes evaluation results and the leaderboard once an organizer approves them.
+The diagram maps nine processes (P1 to P9) and ten data stores (D1 to D10). Onboarding runs across the top (authentication, team formation, mentor allocation), the communication and notification engine sits at the center as the event hub, and evaluation runs across the bottom (project submission, AI evaluation, judge scoring, anomaly detection, certificate generation). Every process reads from and writes to its own dedicated store, and the external actors (Organizer, Participant, Mentor, Judge) interact only through these processes.
+
+Team-formation and mentor-allocation events flow into the notification engine (P4), which pushes updates to users. Anomaly alerts from the scoring path also loop back into P4, so organizers are notified the moment a team is held for review. Evaluation results and the leaderboard are published once an organizer approves them.
 
 ## How the three engines work
 
