@@ -163,7 +163,7 @@ def _get_or_404(repo_method, identifier, resource_name: str):
 # BACKGROUND TASK: LLM RATIONALE GENERATION
 # ──────────────────────────────────────────────
 
-async def _generate_and_save_rationale(
+def _generate_and_save_rationale(
     team_id: int,
     members_data: list[ParticipantData],
     team_name: str,
@@ -536,7 +536,7 @@ def _apply_approve_cascade(approval, db: Session) -> None:
     summary="Run the deterministic team formation algorithm",
     tags=["Team Formation"],
 )
-async def trigger_team_formation(
+def trigger_team_formation(
     config_override: Optional[TeamFormationConfig] = None,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
