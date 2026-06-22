@@ -259,7 +259,7 @@ export default function ParticipantDashboard() {
                 Announcements
               </h3>
               <div className="space-y-3">
-                {announcements.slice(0, 4).map((a) => (
+                {announcements.slice(0, 8).map((a) => (
                   <div key={a.id} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/60">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-white font-medium text-[14px]">{a.title}</span>

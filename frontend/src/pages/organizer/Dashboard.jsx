@@ -424,6 +424,18 @@ export default function OrganizerDashboard() {
     fetchData();
   }, [active]);
 
+  // Auto-refresh the leaderboard/dashboard every 5s while viewing those tabs,
+  // so new judge scores and anomalies appear without a manual refresh.
+  useEffect(() => {
+    if (active !== "leaderboard" && active !== "dashboard") return;
+    const id = setInterval(() => {
+      fetchWithAuth("/api/v1/dashboard/full-analytics")
+        .then((d) => d && setDashboardData(d))
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(id);
+  }, [active]);
+
   useEffect(() => {
     if (active === "timeline") {
       if (!config) {
