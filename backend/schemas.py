@@ -308,6 +308,9 @@ class ParticipantMeResponse(BaseModel):
     submission_status: Optional[str] = None
     mentor_name: Optional[str] = None
     mentor_expertise: Optional[str] = None
+    current_stage: Optional[str] = None
+    evaluator_name: Optional[str] = None
+    key_dates: list[dict] = []
     
     class Config:
         from_attributes = True

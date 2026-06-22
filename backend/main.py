@@ -1293,6 +1293,18 @@ def send_communication(
             subject=req.subject, body=req.body,
             status=CommunicationStatus.SENT, sent_at=now,
         ))
+        # Also deliver the message to the recipient's portal as a notification,
+        # so an organizer broadcast actually shows up for participants/judges.
+        recipient_user = db.query(models.User).filter(
+            models.User.username == email.split("@")[0]
+        ).first()
+        if recipient_user:
+            _create_notification(
+                db, recipient_user.id,
+                req.subject or "Event Update",
+                req.body or "",
+                "SYSTEM",
+            )
     db.commit()
     logger.info(f"Organizer '{current_user.username}' sent '{req.communication_type}' to {len(recipients)} recipients")
     return schemas.CommunicationSendResponse(sent=len(recipients),
@@ -1531,6 +1543,30 @@ def get_participant_me(current_user: User = Depends(get_current_user), db: Sessi
         base_exp = mentor_profile.expertise or "General Mentoring"
         mentor_expertise = f"{base_exp}{score_str}{rationale_str}"
 
+    # ---- Event stage, evaluator(s), and key dates for the status page ----
+    _cfg = EventConfigRepository(db).get()
+    current_stage = _cfg.current_stage.value if _cfg and _cfg.current_stage else "SETUP"
+
+    evaluator_name = None
+    if team:
+        _team_scores = db.query(models.Score).filter(models.Score.team_id == team.id).all()
+        _judge_ids = [sc.judge_id for sc in _team_scores]
+        if _judge_ids:
+            _names = [j.name for j in db.query(models.Judge).filter(models.Judge.id.in_(_judge_ids)).all()]
+            evaluator_name = ", ".join(_names) if _names else None
+    if not evaluator_name:
+        _panel = db.query(models.Judge).limit(3).all()
+        evaluator_name = ", ".join(j.name for j in _panel) if _panel else "To be assigned"
+
+    from datetime import timedelta as _td
+    _base = datetime.utcnow()
+    key_dates = [
+        {"label": "Team Formation",      "date": _base.strftime("%b %d, %Y")},
+        {"label": "Submission Deadline", "date": (_base + _td(days=1)).strftime("%b %d, %Y")},
+        {"label": "Judging",             "date": (_base + _td(days=1)).strftime("%b %d, %Y")},
+        {"label": "Results Announced",   "date": (_base + _td(days=2)).strftime("%b %d, %Y")},
+    ]
+
     return {
         "id": current_user.id,
         "username": current_user.username,
@@ -1548,6 +1584,9 @@ def get_participant_me(current_user: User = Depends(get_current_user), db: Sessi
         "submission_status": "Pending" if team else None,
         "mentor_name": mentor_name,
         "mentor_expertise": mentor_expertise,
+        "current_stage": current_stage,
+        "evaluator_name": evaluator_name,
+        "key_dates": key_dates,
     }
 
 

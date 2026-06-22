@@ -210,6 +210,36 @@ export default function ParticipantDashboard() {
             ))}
           </div>
 
+          {/* Event Status: stage, evaluator, key dates */}
+          {data && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+              <h3 className="text-lg font-medium text-white mb-5">Event Status</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div>
+                  <label className="block text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">Current Stage</label>
+                  <span className="inline-block px-3 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 text-[13px] font-semibold">
+                    {(data.current_stage || "SETUP").replace(/_/g, " ")}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">Your Evaluator</label>
+                  <div className="text-slate-200 text-[14px]">{data.evaluator_name || "To be assigned"}</div>
+                </div>
+                <div>
+                  <label className="block text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">Key Dates</label>
+                  <div className="space-y-1">
+                    {(data.key_dates || []).map((kd, i) => (
+                      <div key={i} className="flex justify-between text-[13px]">
+                        <span className="text-slate-400">{kd.label}</span>
+                        <span className="text-slate-300 font-medium">{kd.date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Profile Overview */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
