@@ -82,6 +82,7 @@ export default function ParticipantDashboard() {
   const [chatMsg, setChatMsg] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [certificates, setCertificates] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -110,9 +111,19 @@ export default function ParticipantDashboard() {
         console.error("Failed to fetch certificates:", err);
       }
     }
-    
+
+    async function fetchAnnouncements() {
+      try {
+        const n = await fetchWithAuth("/api/v1/notifications");
+        if (n) setAnnouncements(n);
+      } catch (err) {
+        console.error("Failed to fetch announcements:", err);
+      }
+    }
+
     fetchData();
     fetchChat();
+    fetchAnnouncements();
     fetchCertificates();
     
     // Simple polling for chat
@@ -236,6 +247,27 @@ export default function ParticipantDashboard() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Announcements: messages the organizer sent to participants */}
+          {announcements.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+              <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>
+                Announcements
+              </h3>
+              <div className="space-y-3">
+                {announcements.slice(0, 4).map((a) => (
+                  <div key={a.id} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/60">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-white font-medium text-[14px]">{a.title}</span>
+                      <span className="text-slate-500 text-[11px]">{a.created_at ? new Date(a.created_at).toLocaleString() : ""}</span>
+                    </div>
+                    <p className="text-slate-400 text-[13px] leading-relaxed whitespace-pre-line">{a.message}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}

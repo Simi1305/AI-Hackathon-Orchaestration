@@ -40,6 +40,7 @@ import os
 from google import genai
 from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 # ── Local imports ─────────────────────────────────────────────
@@ -1206,6 +1207,39 @@ def activity_log(
                 message=f"Judge #{sc.judge_id} scored Team #{sc.team_id}"
                         + (" (flagged as anomalous)." if sc.is_anomalous else ".")))
 
+    # Live anomaly detection: surface currently-held teams as red anomaly entries
+    try:
+        _cfg = EventConfigRepository(db).get()
+        _weights = _cfg.weights_dict()
+        _threshold = _cfg.anomaly_threshold
+        _jname = {j.id: j.name for j in JudgeRepository(db).get_all()}
+        _grouped = ScoreRepository(db).get_scores_grouped_by_team()
+        for _team in db.query(TeamModel).all():
+            _rows = _grouped.get(_team.id, [])
+            if not _rows:
+                continue
+            _inputs = [
+                JudgeScoreInput(
+                    judge_id=s.judge_id,
+                    judge_name=_jname.get(s.judge_id, f"Judge #{s.judge_id}"),
+                    team_id=s.team_id,
+                    innovation=s.innovation or 0.0,
+                    technical_depth=s.technical_depth or 0.0,
+                    presentation=s.presentation or 0.0,
+                    feasibility=s.feasibility or 0.0,
+                    impact=s.impact or 0.0,
+                    notes=s.notes,
+                ) for s in _rows
+            ]
+            _res = consolidate_scores(team_id=_team.id, scores=_inputs, weights=_weights, anomaly_threshold=_threshold)
+            if _res.anomalies:
+                _ts = max((s.submitted_at for s in _rows if s.submitted_at), default=datetime.utcnow())
+                entries.append(schemas.ActivityEntry(
+                    timestamp=_ts, category="ANOMALY",
+                    message=f"Team '{_team.name}' held for review: anomalous judge scoring detected ({len(_res.anomalies)} flag(s))."))
+    except Exception as _exc:
+        logger.warning(f"activity-log anomaly scan failed: {_exc}")
+
     entries.sort(key=lambda e: e.timestamp, reverse=True)
     return entries[:30]
 
@@ -1720,23 +1754,50 @@ def get_full_analytics(current_user: User = Depends(get_current_user), db: Sessi
             "type": "neutral",
         })
 
-    # Leaderboard
-    top_teams = db.query(models.Team).filter(
-        models.Team.final_score.isnot(None)
-    ).order_by(models.Team.final_score.desc()).limit(10).all()
-    
+    # Leaderboard - LIVE consolidation with anomaly detection (matches /api/v1/leaderboard)
+    _cfg_lb = EventConfigRepository(db).get()
+    _weights = _cfg_lb.weights_dict()
+    _threshold = _cfg_lb.anomaly_threshold
+    _all_teams = TeamRepository(db).get_all()
+    _judge_name_map = {j.id: j.name for j in JudgeRepository(db).get_all()}
+    _scores_by_team = ScoreRepository(db).get_scores_grouped_by_team()
+    _team_results = []
+    for _team in _all_teams:
+        _inputs = [
+            JudgeScoreInput(
+                judge_id=s.judge_id,
+                judge_name=_judge_name_map.get(s.judge_id, f"Judge #{s.judge_id}"),
+                team_id=s.team_id,
+                innovation=s.innovation or 0.0,
+                technical_depth=s.technical_depth or 0.0,
+                presentation=s.presentation or 0.0,
+                feasibility=s.feasibility or 0.0,
+                impact=s.impact or 0.0,
+                notes=s.notes,
+            )
+            for s in _scores_by_team.get(_team.id, [])
+        ]
+        _res = consolidate_scores(team_id=_team.id, scores=_inputs, weights=_weights, anomaly_threshold=_threshold)
+        _team_results.append((_team.id, _team.name, _res))
+    _board = build_leaderboard(_team_results)
+    _team_by_id = {t.id: t for t in _all_teams}
     leaderboard = []
-    for team in top_teams:
+    for _e in _board:
+        if _e.is_held:
+            continue  # teams held for anomaly review drop off the ranked board
+        _t = _team_by_id.get(_e.team_id)
         leaderboard.append({
-            "team_id": team.id,
-            "team_name": team.name,
-            "challenge": team.challenge,
-            "final_score": team.final_score,
-            "rank": team.rank,
-            "dimension_averages": {"innovation": 8.5},
+            "team_id": _e.team_id,
+            "team_name": _e.team_name,
+            "challenge": _t.challenge if _t else None,
+            "final_score": _e.final_score,
+            "rank": _e.rank,
+            "dimension_averages": _e.dimension_averages,
             "is_held": False,
-            "anomaly_count": 0
+            "anomaly_count": 0,
         })
+    # live anomaly indicator: how many teams are currently held
+    anomalous_count = sum(1 for _e in _board if _e.is_held)
 
     # Activity data (mocked from DB sizes for realistic frontend)
     team_activity = [
@@ -1857,7 +1918,59 @@ def get_participant_certificates(current_user: User = Depends(get_current_user),
         models.Certificate.user_id == current_user.id,
         models.Certificate.is_published == True
     ).all()
+    # Point the download link at the real, renderable certificate (not a dummy URL).
+    for _c in certs:
+        _c.download_url = f"http://localhost:8000/api/v1/certificates/{_c.id}/view"
     return certs
+
+
+@app.get("/api/v1/certificates/{cert_id}/view", tags=["Certificates"])
+def view_certificate(cert_id: int, db: Session = Depends(get_db)):
+    """Renders a real, printable certificate (open link so the browser can show it).
+    Use the browser's Print -> Save as PDF to download it."""
+    cert = db.query(models.Certificate).filter(models.Certificate.id == cert_id).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    user = db.query(models.User).filter(models.User.id == cert.user_id).first()
+    name = user.username if user else "Participant"
+    if user:
+        part = db.query(models.Participant).filter(
+            models.Participant.email.contains(user.username)
+        ).first()
+        if part and part.name:
+            name = part.name
+    cfg = EventConfigRepository(db).get()
+    event_name = (cfg.event_name if cfg else None) or "Hackathon"
+    issued = cert.issued_at.strftime("%B %d, %Y") if cert.issued_at else ""
+    ctype = (cert.certificate_type or "PARTICIPATION").title()
+    html = (
+        "<!doctype html><html><head><meta charset='utf-8'><title>Certificate</title>"
+        "<style>"
+        "body{margin:0;font-family:Georgia,'Times New Roman',serif;background:#0f172a;"
+        "display:flex;align-items:center;justify-content:center;min-height:100vh}"
+        ".cert{background:#fffdf7;width:900px;max-width:92vw;padding:56px;"
+        "box-shadow:0 20px 60px rgba(0,0,0,.45)}"
+        ".frame{border:3px double #c9a227;padding:46px;text-align:center}"
+        ".sub{color:#7c6f4a;text-transform:uppercase;letter-spacing:5px;font-size:12px;margin-bottom:26px}"
+        "h1{color:#1e293b;font-size:38px;letter-spacing:1px;margin:0 0 6px}"
+        ".rule{width:80px;height:3px;background:#c9a227;margin:14px auto 26px}"
+        ".lead{color:#475569;font-size:15px;margin:10px 0}"
+        ".name{color:#0f172a;font-size:32px;margin:14px 0;border-bottom:1px solid #c9a227;"
+        "display:inline-block;padding:0 34px 8px}"
+        ".body{color:#334155;font-size:15px;line-height:1.7;margin:14px auto;max-width:560px}"
+        ".meta{margin-top:34px;color:#64748b;font-size:13px}"
+        ".badge{color:#c9a227;font-weight:bold;letter-spacing:2px}"
+        "</style></head><body><div class='cert'><div class='frame'>"
+        f"<div class='sub'>{event_name}</div>"
+        f"<h1>Certificate of {ctype}</h1><div class='rule'></div>"
+        "<div class='lead'>This certificate is proudly presented to</div>"
+        f"<div class='name'>{name}</div>"
+        "<div class='body'>in recognition of outstanding participation and contribution "
+        "in the hackathon.</div>"
+        f"<div class='meta'>Issued on {issued} &nbsp;&middot;&nbsp; <span class='badge'>EventFlow</span></div>"
+        "</div></div></body></html>"
+    )
+    return HTMLResponse(content=html)
 
 @app.get("/api/v1/organizer/reports/summary", tags=["Dashboards"])
 def get_report_summary(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
